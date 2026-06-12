@@ -1,0 +1,364 @@
+import { Link } from "react-router-dom";
+import { motion, type Variants } from "framer-motion";
+import { CalendarDays, ChevronRight, MapPin, Newspaper } from "lucide-react";
+import { teamByCode, venueById, NEWS, type Match, type NewsItem } from "../data/wm";
+import { LiveBadge, Pill, SectionHeader, Skeleton, TeamCrest } from "../components/ui";
+import { AIPredictionCard } from "../components/ai/AIPredictionCard";
+import { FavoritesBar } from "../components/dashboard/FavoritesBar";
+import { liveOf, matchesOn, useWmData } from "../lib/useWmData";
+import { cn, kickoffUser, timeAgo } from "../lib/utils";
+
+/** "Fr., 12. Juni" relativ zu heute. */
+function dayLabel(offsetDays: number): string {
+  return new Intl.DateTimeFormat("de-DE", {
+    weekday: "short",
+    day: "numeric",
+    month: "long",
+  }).format(new Date(Date.now() + offsetDays * 86_400_000));
+}
+
+/* ---------------- Framer-Motion-Orchestrierung ---------------- */
+
+const page: Variants = {
+  hidden: {},
+  show: { transition: { staggerChildren: 0.09, delayChildren: 0.05 } },
+};
+
+const rise: Variants = {
+  hidden: { opacity: 0, y: 16 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: "easeOut" } },
+};
+
+/* ---------------------- Hero: Live-Match ----------------------- */
+
+function HeroLiveCard({ match }: { match: Match }) {
+  const home = teamByCode(match.homeCode);
+  const away = teamByCode(match.awayCode);
+  const venue = venueById(match.venueId);
+
+  return (
+    <Link
+      to={`/match/${match.id}`}
+      aria-label={`Zum Match-Center: ${home.name} gegen ${away.name}`}
+      className="card group relative block cursor-pointer overflow-hidden p-6 shadow-[0_0_60px_-18px_rgb(205_245_66/0.25)] transition-colors duration-200 hover:border-volt-400/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-volt-400 sm:p-8"
+    >
+      {/* dezenter Volt-Glow */}
+      <div
+        className="pointer-events-none absolute inset-0 opacity-70"
+        style={{
+          background:
+            "radial-gradient(560px 220px at 18% 0%, rgb(205 245 66 / 0.08), transparent 65%), radial-gradient(560px 220px at 82% 100%, rgb(56 189 248 / 0.07), transparent 65%)",
+        }}
+        aria-hidden="true"
+      />
+
+      <div className="relative">
+        <div className="flex items-center justify-between gap-3">
+          {match.status === "live" ? (
+            <LiveBadge minute={match.minute} />
+          ) : match.status === "finished" ? (
+            <Pill tone="neutral">Endstand</Pill>
+          ) : (
+            <span className="font-mono text-sm font-semibold text-zinc-200">
+              Heute · {kickoffUser(match)} Uhr
+            </span>
+          )}
+          <span className="label-caps">{match.group ? `Gruppe ${match.group}` : "WM 2026"}</span>
+        </div>
+
+        <div className="mt-6 grid grid-cols-[1fr_auto_1fr] items-center gap-3 sm:gap-6">
+          {/* Heim */}
+          <div className="flex flex-col items-center gap-3 text-center">
+            <TeamCrest code={home.code} size="xl" />
+            <div>
+              <p className="font-display text-base font-extrabold text-zinc-50 sm:text-lg">
+                {home.name}
+              </p>
+              <p className="label-caps mt-0.5 text-volt-400/80">Heim</p>
+            </div>
+          </div>
+
+          {/* Score */}
+          {match.status === "upcoming" ? (
+            <span className="display-num text-5xl text-zinc-600 sm:text-7xl">–</span>
+          ) : (
+            <div className="flex items-center gap-2 sm:gap-4">
+              <span className="display-num text-5xl text-volt-400 sm:text-7xl">
+                {match.homeScore}
+              </span>
+              <span className="display-num text-3xl text-zinc-600 sm:text-5xl">:</span>
+              <span className="display-num text-5xl text-azure-400 sm:text-7xl">
+                {match.awayScore}
+              </span>
+            </div>
+          )}
+
+          {/* Auswärts */}
+          <div className="flex flex-col items-center gap-3 text-center">
+            <TeamCrest code={away.code} size="xl" />
+            <div>
+              <p className="font-display text-base font-extrabold text-zinc-50 sm:text-lg">
+                {away.name}
+              </p>
+              <p className="label-caps mt-0.5 text-azure-400/80">Auswärts</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-7 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-4">
+          <p className="flex items-center gap-1.5 text-sm text-zinc-400">
+            <MapPin className="h-3.5 w-3.5 text-zinc-500" aria-hidden="true" />
+            {venue.stadium} · {venue.city}
+          </p>
+          <span className="flex items-center gap-1 text-sm font-semibold text-volt-400 transition-colors duration-200 group-hover:text-volt-300">
+            Match-Center
+            <ChevronRight
+              className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-0.5"
+              aria-hidden="true"
+            />
+          </span>
+        </div>
+      </div>
+    </Link>
+  );
+}
+
+/* --------------------- Heute: Match-Karte ----------------------- */
+
+function TodayMatchCard({ match }: { match: Match }) {
+  const home = teamByCode(match.homeCode);
+  const away = teamByCode(match.awayCode);
+  const venue = venueById(match.venueId);
+  const isLive = match.status === "live";
+
+  return (
+    <Link
+      to={`/match/${match.id}`}
+      aria-label={`${home.name} gegen ${away.name}, Details öffnen`}
+      className={cn(
+        "card group block cursor-pointer p-4 transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-volt-400",
+        isLive ? "border-volt-400/30 hover:border-volt-400/50" : "hover:border-zinc-600"
+      )}
+    >
+      <div className="flex items-center justify-between gap-2">
+        {isLive ? (
+          <LiveBadge minute={match.minute} />
+        ) : (
+          <span className="font-mono text-sm tabular-nums text-zinc-300">
+            {kickoffUser(match)} Uhr
+          </span>
+        )}
+        <span className="label-caps">{match.group ? `Gruppe ${match.group}` : "WM 2026"}</span>
+      </div>
+
+      <div className="mt-3.5 space-y-2.5">
+        {(
+          [
+            [home, match.homeScore, "home"],
+            [away, match.awayScore, "away"],
+          ] as const
+        ).map(([team, score, side]) => (
+          <div key={team.code} className="flex items-center justify-between gap-3">
+            <span className="flex items-center gap-2.5">
+              <TeamCrest code={team.code} size="md" />
+              <span className="text-sm font-semibold text-zinc-100">{team.name}</span>
+            </span>
+            {isLive && (
+              <span
+                className={cn(
+                  "display-num text-xl",
+                  side === "home" ? "text-volt-400" : "text-azure-400"
+                )}
+              >
+                {score}
+              </span>
+            )}
+          </div>
+        ))}
+      </div>
+
+      <p className="mt-3.5 flex items-center gap-1.5 border-t border-line pt-3 text-xs text-zinc-500 transition-colors duration-200 group-hover:text-zinc-400">
+        <MapPin className="h-3 w-3" aria-hidden="true" />
+        {venue.city} · {venue.stadium}
+      </p>
+    </Link>
+  );
+}
+
+/* ------------------ Gestern: kompakte Ergebniszeile ------------------ */
+
+function ResultRow({ match }: { match: Match }) {
+  const home = teamByCode(match.homeCode);
+  const away = teamByCode(match.awayCode);
+  const venue = venueById(match.venueId);
+
+  return (
+    <Link
+      to={`/match/${match.id}`}
+      aria-label={`Ergebnis: ${home.name} ${match.homeScore} zu ${match.awayScore} gegen ${away.name}`}
+      className="flex min-h-11 cursor-pointer items-center gap-3 rounded-xl px-3 py-2.5 transition-colors duration-200 hover:bg-white/[0.04] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-volt-400"
+    >
+      <span className="label-caps w-14 shrink-0">{match.group ? `Gr. ${match.group}` : "WM"}</span>
+      <span className="flex min-w-0 flex-1 items-center justify-end gap-2 text-right">
+        <span className="truncate text-sm font-medium text-zinc-200">{home.name}</span>
+        <TeamCrest code={home.code} size="sm" />
+      </span>
+      <span className="display-num shrink-0 rounded-lg bg-pitch-800 px-2.5 py-1 text-sm text-zinc-100">
+        {match.homeScore}&thinsp;:&thinsp;{match.awayScore}
+      </span>
+      <span className="flex min-w-0 flex-1 items-center gap-2">
+        <TeamCrest code={away.code} size="sm" />
+        <span className="truncate text-sm font-medium text-zinc-200">{away.name}</span>
+      </span>
+      <span className="hidden shrink-0 text-xs text-zinc-500 sm:block">{venue.city}</span>
+    </Link>
+  );
+}
+
+/* ------------------------------ News ------------------------------ */
+
+const NEWS_TONE: Record<NewsItem["category"], "volt" | "azure" | "signal" | "gold"> = {
+  Verletzung: "signal",
+  Taktik: "azure",
+  Turnier: "volt",
+  "Transfer-Buzz": "gold",
+};
+
+function NewsCard({ item }: { item: NewsItem }) {
+  return (
+    <article className="card flex flex-col gap-2.5 p-4 transition-colors duration-200 hover:border-zinc-600">
+      <div className="flex items-center justify-between gap-2">
+        <Pill tone={NEWS_TONE[item.category]}>{item.category}</Pill>
+        <span className="font-mono text-[11px] text-zinc-500">
+          {timeAgo(item.timestamp)}
+        </span>
+      </div>
+      <h3 className="font-display text-sm font-extrabold leading-snug text-zinc-100">
+        {item.headline}
+      </h3>
+      <p className="text-sm leading-relaxed text-zinc-400">{item.summary}</p>
+      {item.teamCode && (
+        <div className="mt-auto flex items-center gap-2 pt-1">
+          <TeamCrest code={item.teamCode} size="sm" />
+          <span className="text-xs font-medium text-zinc-500">
+            {teamByCode(item.teamCode).name}
+          </span>
+        </div>
+      )}
+    </article>
+  );
+}
+
+/* ----------------------------- Seite ------------------------------ */
+
+export default function Dashboard() {
+  const { matches, source, loading } = useWmData();
+  const live = liveOf(matches);
+  const today = matchesOn(matches, 0);
+  const yesterday = matchesOn(matches, -1).filter((m) => m.status === "finished");
+  const featured =
+    live[0] ??
+    today.find((m) => m.status === "upcoming" && m.prediction) ??
+    today[0] ??
+    matches.find((m) => m.status === "upcoming");
+
+  if (loading) {
+    return (
+      <div className="space-y-6" aria-busy="true" aria-label="Spieldaten werden geladen">
+        <Skeleton className="h-14 w-full" />
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
+          <Skeleton className="h-72" />
+          <Skeleton className="h-72" />
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <Skeleton className="h-44" />
+          <Skeleton className="h-44" />
+          <Skeleton className="h-44 max-sm:hidden" />
+          <Skeleton className="h-44 max-lg:hidden" />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <motion.div variants={page} initial="hidden" animate="show" className="space-y-10">
+      {/* Datenquelle */}
+      <motion.div variants={rise} className="-mb-6 flex justify-end">
+        <Pill tone={source === "live" ? "volt" : "neutral"}>
+          {source === "live" ? "Live-Daten · ESPN" : "Demo-Daten · API offline"}
+        </Pill>
+      </motion.div>
+
+      {/* Favoriten-Schnellzugriff */}
+      <motion.section variants={rise} aria-label="Favoriten-Schnellzugriff">
+        <FavoritesBar />
+      </motion.section>
+
+      {/* Hero: Live-Match + KI-Prognose */}
+      {featured && (
+        <motion.section variants={rise} aria-label="Live-Match im Fokus">
+          <div className="grid gap-4 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
+            <HeroLiveCard match={featured} />
+            <AIPredictionCard match={featured} />
+          </div>
+        </motion.section>
+      )}
+
+      {/* Heute */}
+      <motion.section variants={rise} aria-label="Heutige Spiele">
+        <SectionHeader
+          title="Heute"
+          hint="Alle Partien des Spieltags – Zeiten in deiner Zeitzone"
+          action={
+            <span className="label-caps flex items-center gap-1.5">
+              <CalendarDays className="h-3.5 w-3.5" aria-hidden="true" />
+              {dayLabel(0)}
+            </span>
+          }
+        />
+        {today.length > 0 ? (
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {today.map((m) => (
+              <TodayMatchCard key={m.id} match={m} />
+            ))}
+          </div>
+        ) : (
+          <p className="card p-6 text-center text-sm text-zinc-500">
+            Heute stehen keine Partien an.
+          </p>
+        )}
+      </motion.section>
+
+      {/* Gestern */}
+      {yesterday.length > 0 && (
+        <motion.section variants={rise} aria-label="Ergebnisse von gestern">
+          <SectionHeader title="Gestern" hint={`Endstände vom ${dayLabel(-1)}`} />
+          <div className="card divide-y divide-line p-1.5">
+            {yesterday.map((m) => (
+              <ResultRow key={m.id} match={m} />
+            ))}
+          </div>
+        </motion.section>
+      )}
+
+      {/* News */}
+      <motion.section variants={rise} aria-label="Aktuelle Meldungen">
+        <SectionHeader
+          title="News & Buzz"
+          hint="Verletzungen, Taktik und Turniergeschehen · redaktionelle Demo-Inhalte"
+          action={
+            <span className="label-caps flex items-center gap-1.5">
+              <Newspaper className="h-3.5 w-3.5" aria-hidden="true" />
+              {NEWS.length} Meldungen
+            </span>
+          }
+        />
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {NEWS.map((item) => (
+            <NewsCard key={item.id} item={item} />
+          ))}
+        </div>
+      </motion.section>
+    </motion.div>
+  );
+}

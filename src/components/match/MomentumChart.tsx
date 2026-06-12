@@ -1,0 +1,117 @@
+import {
+  Bar,
+  BarChart,
+  Cell,
+  ReferenceLine,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
+import type { MomentumPoint } from "../../data/wm";
+import { cn } from "../../lib/utils";
+
+/* ---------------------------------------------------------------- */
+/*  Attack Momentum – Spielverlauf als Balkendiagramm                */
+/*  Wert > 0 = Heimteam dominiert (Volt), < 0 = Gastteam (Azure)     */
+/* ---------------------------------------------------------------- */
+
+const VOLT = "#cdf542";
+const AZURE = "#38bdf8";
+
+function MomentumTooltip({
+  active,
+  payload,
+  homeName,
+  awayName,
+}: {
+  active?: boolean;
+  payload?: { payload: MomentumPoint }[];
+  homeName: string;
+  awayName: string;
+}) {
+  if (!active || !payload || payload.length === 0) return null;
+  const point = payload[0].payload;
+  const isHome = point.value >= 0;
+  const strength = Math.abs(point.value);
+  const verb =
+    strength >= 55 ? "dominiert" : strength >= 25 ? "macht Druck" : "leicht am Drücker";
+  return (
+    <div className="rounded-lg border border-line bg-pitch-850 px-3 py-2 shadow-xl">
+      <p className="font-mono text-xs text-zinc-200">
+        {point.minute}′ —{" "}
+        <span className={isHome ? "text-volt-400" : "text-azure-400"}>
+          {isHome ? homeName : awayName}
+        </span>{" "}
+        {verb}
+      </p>
+    </div>
+  );
+}
+
+export function MomentumChart({
+  momentum,
+  homeName,
+  awayName,
+  className,
+}: {
+  momentum: MomentumPoint[];
+  homeName: string;
+  awayName: string;
+  className?: string;
+}) {
+  return (
+    <div className={cn(className)}>
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
+        <p className="font-display text-sm font-extrabold tracking-tight text-zinc-100">
+          Attack Momentum
+        </p>
+        <div className="flex items-center gap-4 text-xs text-zinc-400">
+          <span className="flex items-center gap-1.5">
+            <span className="h-2 w-2 rounded-full bg-volt-400" aria-hidden="true" />
+            {homeName}
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="h-2 w-2 rounded-full bg-azure-400" aria-hidden="true" />
+            {awayName}
+          </span>
+        </div>
+      </div>
+
+      <div className="h-40 w-full">
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart
+            data={momentum}
+            margin={{ top: 6, right: 4, bottom: 0, left: 4 }}
+            barCategoryGap="18%"
+          >
+            <XAxis
+              dataKey="minute"
+              ticks={[15, 30, 45, 60, 75, 90]}
+              interval={0}
+              tickFormatter={(m: number) => `${m}'`}
+              tickLine={false}
+              axisLine={{ stroke: "#27272e" }}
+              tick={{ fill: "#71717a", fontSize: 10, fontFamily: "'JetBrains Mono', monospace" }}
+            />
+            <YAxis hide domain={[-100, 100]} />
+            <ReferenceLine y={0} stroke="#3f3f46" strokeWidth={1} />
+            <Tooltip
+              cursor={{ fill: "rgba(255, 255, 255, 0.05)" }}
+              content={<MomentumTooltip homeName={homeName} awayName={awayName} />}
+            />
+            <Bar dataKey="value" maxBarSize={6} radius={[2, 2, 2, 2]}>
+              {momentum.map((p) => (
+                <Cell
+                  key={p.minute}
+                  fill={p.value >= 0 ? VOLT : AZURE}
+                  fillOpacity={0.85}
+                />
+              ))}
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+    </div>
+  );
+}

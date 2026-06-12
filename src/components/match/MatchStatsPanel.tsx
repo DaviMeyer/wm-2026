@@ -1,0 +1,69 @@
+import { BarChart3 } from "lucide-react";
+import type { Match } from "../../data/wm";
+import { Card, StatBar, TeamCrest } from "../ui";
+import { cn } from "../../lib/utils";
+
+/* ---------------------------------------------------------------- */
+/*  Vollständige Spielstatistik als StatBar-Liste                    */
+/* ---------------------------------------------------------------- */
+
+const fmtXg = (v: number) => v.toFixed(2).replace(".", ",");
+const fmtPct = (v: number) => `${v} %`;
+
+export function MatchStatsPanel({ match, className }: { match: Match; className?: string }) {
+  const stats = match.stats;
+
+  if (!stats) {
+    return (
+      <Card className={cn("p-8 text-center", className)}>
+        <BarChart3 className="mx-auto h-8 w-8 text-zinc-600" aria-hidden="true" />
+        <p className="mt-3 font-display text-sm font-extrabold text-zinc-200">
+          Noch keine Statistiken
+        </p>
+        <p className="mt-1 text-sm text-zinc-500">
+          Detaillierte Spielstatistiken sind ab Anstoß verfügbar.
+        </p>
+      </Card>
+    );
+  }
+
+  // Nur verfügbare Werte anzeigen – die Live-API liefert z. B. kein xG.
+  const rows = (
+    [
+      { label: "Expected Goals (xG)", values: stats.xg, format: fmtXg },
+      { label: "Ballbesitz", values: stats.possession, format: fmtPct },
+      { label: "Schüsse", values: stats.shots },
+      { label: "Schüsse aufs Tor", values: stats.shotsOnTarget },
+      { label: "Pässe", values: stats.passes },
+      { label: "Passquote", values: stats.passAccuracy, format: fmtPct },
+      { label: "Ecken", values: stats.corners },
+      { label: "Fouls", values: stats.fouls },
+      { label: "Gelbe Karten", values: stats.yellowCards },
+    ] as { label: string; values?: [number, number]; format?: (v: number) => string }[]
+  ).filter((r): r is { label: string; values: [number, number]; format?: (v: number) => string } =>
+    r.values !== undefined
+  );
+
+  return (
+    <Card className={cn("p-5 sm:p-6", className)}>
+      <div className="mb-6 flex items-center justify-between gap-3">
+        <TeamCrest code={match.homeCode} size="sm" />
+        <p className="font-display text-sm font-extrabold tracking-tight text-zinc-100">
+          Spielstatistik
+        </p>
+        <TeamCrest code={match.awayCode} size="sm" />
+      </div>
+      <div className="space-y-5">
+        {rows.map((row) => (
+          <StatBar
+            key={row.label}
+            label={row.label}
+            home={row.values[0]}
+            away={row.values[1]}
+            format={row.format}
+          />
+        ))}
+      </div>
+    </Card>
+  );
+}
