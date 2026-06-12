@@ -26,8 +26,8 @@ export function SectionHeader({
   action?: ReactNode;
 }) {
   return (
-    <div className="mb-4 flex items-end justify-between gap-4">
-      <div>
+    <div className="mb-4 flex flex-wrap items-end justify-between gap-x-4 gap-y-2">
+      <div className="min-w-0">
         <h2 className="font-display text-lg font-extrabold tracking-tight text-zinc-50">
           {title}
         </h2>
@@ -67,7 +67,7 @@ export function TeamCrest({
     sm: "h-6 w-6 text-[8px]",
     md: "h-8 w-8 text-[9px]",
     lg: "h-11 w-11 text-[11px]",
-    xl: "h-16 w-16 text-sm",
+    xl: "h-14 w-14 text-[13px] sm:h-16 sm:w-16 sm:text-sm",
   }[size];
   const [c1, c2] = team.colors;
   return (
@@ -133,12 +133,12 @@ export function StatBar({
   const awayWins = highlightWinner && away > home;
   return (
     <div>
-      <div className="mb-1.5 flex items-baseline justify-between font-mono text-sm">
-        <span className={cn("tabular-nums", homeWins ? "font-semibold text-volt-400" : "text-zinc-300")}>
+      <div className="mb-1.5 flex items-baseline justify-between gap-2 font-mono text-sm">
+        <span className={cn("shrink-0 tabular-nums", homeWins ? "font-semibold text-volt-400" : "text-zinc-300")}>
           {format(home)}
         </span>
-        <span className="label-caps">{label}</span>
-        <span className={cn("tabular-nums", awayWins ? "font-semibold text-azure-400" : "text-zinc-300")}>
+        <span className="label-caps min-w-0 truncate text-center">{label}</span>
+        <span className={cn("shrink-0 tabular-nums", awayWins ? "font-semibold text-azure-400" : "text-zinc-300")}>
           {format(away)}
         </span>
       </div>

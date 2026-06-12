@@ -46,16 +46,16 @@ function ResultRow({
       initial={{ opacity: 0, x: -12 }}
       animate={{ opacity: 1, x: 0 }}
       transition={{ duration: 0.3, ease: "easeOut", delay: index * 0.05 }}
-      className="flex items-center gap-3"
+      className="flex items-center gap-2 sm:gap-3"
     >
       <span className="w-5 shrink-0 text-right font-mono text-xs tabular-nums text-zinc-500">
         {index + 1}
       </span>
       <TeamCrest code={code} size="sm" />
-      <span className="w-24 shrink-0 truncate text-sm font-medium text-zinc-200 sm:w-28">
+      <span className="w-20 shrink-0 truncate text-sm font-medium text-zinc-200 sm:w-28">
         {teamByCode(code).name}
       </span>
-      <div className="h-2.5 flex-1 overflow-hidden rounded-full bg-pitch-800">
+      <div className="h-2.5 min-w-0 flex-1 overflow-hidden rounded-full bg-pitch-800">
         <motion.div
           className={cn("h-full rounded-full", barClass)}
           initial={{ width: 0 }}
@@ -63,7 +63,7 @@ function ResultRow({
           transition={{ duration: 0.55, ease: "easeOut", delay: index * 0.05 + 0.1 }}
         />
       </div>
-      <span className="w-16 shrink-0 text-right font-mono text-sm tabular-nums text-zinc-200">
+      <span className="w-14 shrink-0 text-right font-mono text-xs tabular-nums text-zinc-200 sm:w-16 sm:text-sm">
         {fmtPct(pct)}
       </span>
     </motion.li>
@@ -87,7 +87,7 @@ function SideCard({
   const rows = topEntries(data, 5);
   const max = rows.length > 0 ? rows[0][1] : 0;
   return (
-    <Card className="p-5">
+    <Card className="min-w-0 p-4 sm:p-5">
       <h3 className="flex items-center gap-2 font-display text-sm font-extrabold uppercase tracking-wider text-zinc-100">
         <Icon className={cn("h-4 w-4", iconClass)} aria-hidden="true" />
         {title}
@@ -164,11 +164,11 @@ export default function Simulator() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.35, ease: "easeOut", delay: 0.08 }}
       >
-        <Card className="flex flex-col gap-4 p-5 sm:flex-row sm:items-end sm:justify-between">
+        <Card className="flex flex-col gap-4 p-4 sm:flex-row sm:items-end sm:justify-between sm:p-5">
           <div>
             <p className="label-caps mb-2">Simulationsläufe</p>
             <div
-              className="inline-flex rounded-xl border border-line bg-pitch-850 p-1"
+              className="flex rounded-xl border border-line bg-pitch-850 p-1 sm:inline-flex"
               role="group"
               aria-label="Anzahl der Simulationsläufe"
             >
@@ -180,7 +180,7 @@ export default function Simulator() {
                   onClick={() => setRuns(option)}
                   aria-pressed={runs === option}
                   className={cn(
-                    "min-h-11 cursor-pointer rounded-lg px-5 font-mono text-sm tabular-nums transition-colors duration-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-volt-400 disabled:cursor-not-allowed",
+                    "min-h-11 flex-1 cursor-pointer rounded-lg px-5 font-mono text-sm tabular-nums transition-colors duration-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-volt-400 disabled:cursor-not-allowed sm:flex-none",
                     runs === option
                       ? "bg-pitch-700 font-semibold text-zinc-50"
                       : "text-zinc-400 hover:text-zinc-200"
@@ -221,7 +221,7 @@ export default function Simulator() {
               title="Titelwahrscheinlichkeit"
               hint={`Top 10 nach ${result.runs.toLocaleString("de-DE")} simulierten Turnieren`}
             />
-            <Card className="p-5">
+            <Card className="p-4 sm:p-5">
               <ul className="space-y-3">
                 {champions.map(([code, pct], i) => (
                   <ResultRow
@@ -260,7 +260,7 @@ export default function Simulator() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.35, ease: "easeOut", delay: 0.16 }}
         >
-          <Card className="flex flex-col items-center justify-center gap-3 px-6 py-16 text-center">
+          <Card className="flex flex-col items-center justify-center gap-3 px-4 py-12 text-center sm:px-6 sm:py-16">
             <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-volt-400/10">
               <BrainCircuit className="h-7 w-7 text-volt-400" aria-hidden="true" />
             </span>

@@ -40,7 +40,7 @@ function HeroLiveCard({ match }: { match: Match }) {
     <Link
       to={`/match/${match.id}`}
       aria-label={`Zum Match-Center: ${home.name} gegen ${away.name}`}
-      className="card group relative block cursor-pointer overflow-hidden p-6 shadow-[0_0_60px_-18px_rgb(205_245_66/0.25)] transition-colors duration-200 hover:border-volt-400/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-volt-400 sm:p-8"
+      className="card group relative block cursor-pointer overflow-hidden p-4 shadow-[0_0_60px_-18px_rgb(205_245_66/0.25)] transition-colors duration-200 hover:border-volt-400/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-volt-400 sm:p-8"
     >
       {/* dezenter Volt-Glow */}
       <div
@@ -66,12 +66,12 @@ function HeroLiveCard({ match }: { match: Match }) {
           <span className="label-caps">{match.group ? `Gruppe ${match.group}` : "WM 2026"}</span>
         </div>
 
-        <div className="mt-6 grid grid-cols-[1fr_auto_1fr] items-center gap-3 sm:gap-6">
+        <div className="mt-6 grid grid-cols-[1fr_auto_1fr] items-center gap-2 sm:gap-6">
           {/* Heim */}
-          <div className="flex flex-col items-center gap-3 text-center">
+          <div className="flex min-w-0 flex-col items-center gap-2 text-center sm:gap-3">
             <TeamCrest code={home.code} size="xl" />
-            <div>
-              <p className="font-display text-base font-extrabold text-zinc-50 sm:text-lg">
+            <div className="min-w-0 max-w-full">
+              <p className="hyphens-auto break-words font-display text-sm font-extrabold text-zinc-50 sm:text-lg">
                 {home.name}
               </p>
               <p className="label-caps mt-0.5 text-volt-400/80">Heim</p>
@@ -80,24 +80,24 @@ function HeroLiveCard({ match }: { match: Match }) {
 
           {/* Score */}
           {match.status === "upcoming" ? (
-            <span className="display-num text-5xl text-zinc-600 sm:text-7xl">–</span>
+            <span className="display-num text-4xl text-zinc-600 sm:text-7xl">–</span>
           ) : (
-            <div className="flex items-center gap-2 sm:gap-4">
-              <span className="display-num text-5xl text-volt-400 sm:text-7xl">
+            <div className="flex items-center gap-1.5 sm:gap-4">
+              <span className="display-num text-4xl text-volt-400 sm:text-7xl">
                 {match.homeScore}
               </span>
-              <span className="display-num text-3xl text-zinc-600 sm:text-5xl">:</span>
-              <span className="display-num text-5xl text-azure-400 sm:text-7xl">
+              <span className="display-num text-2xl text-zinc-600 sm:text-5xl">:</span>
+              <span className="display-num text-4xl text-azure-400 sm:text-7xl">
                 {match.awayScore}
               </span>
             </div>
           )}
 
           {/* Auswärts */}
-          <div className="flex flex-col items-center gap-3 text-center">
+          <div className="flex min-w-0 flex-col items-center gap-2 text-center sm:gap-3">
             <TeamCrest code={away.code} size="xl" />
-            <div>
-              <p className="font-display text-base font-extrabold text-zinc-50 sm:text-lg">
+            <div className="min-w-0 max-w-full">
+              <p className="hyphens-auto break-words font-display text-sm font-extrabold text-zinc-50 sm:text-lg">
                 {away.name}
               </p>
               <p className="label-caps mt-0.5 text-azure-400/80">Auswärts</p>
@@ -106,9 +106,11 @@ function HeroLiveCard({ match }: { match: Match }) {
         </div>
 
         <div className="mt-7 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-4">
-          <p className="flex items-center gap-1.5 text-sm text-zinc-400">
-            <MapPin className="h-3.5 w-3.5 text-zinc-500" aria-hidden="true" />
-            {venue.stadium} · {venue.city}
+          <p className="flex min-w-0 items-center gap-1.5 text-sm text-zinc-400">
+            <MapPin className="h-3.5 w-3.5 shrink-0 text-zinc-500" aria-hidden="true" />
+            <span className="truncate">
+              {venue.stadium} · {venue.city}
+            </span>
           </p>
           <span className="flex items-center gap-1 text-sm font-semibold text-volt-400 transition-colors duration-200 group-hover:text-volt-300">
             Match-Center
@@ -159,14 +161,14 @@ function TodayMatchCard({ match }: { match: Match }) {
           ] as const
         ).map(([team, score, side]) => (
           <div key={team.code} className="flex items-center justify-between gap-3">
-            <span className="flex items-center gap-2.5">
+            <span className="flex min-w-0 items-center gap-2.5">
               <TeamCrest code={team.code} size="md" />
-              <span className="text-sm font-semibold text-zinc-100">{team.name}</span>
+              <span className="truncate text-sm font-semibold text-zinc-100">{team.name}</span>
             </span>
             {isLive && (
               <span
                 className={cn(
-                  "display-num text-xl",
+                  "display-num shrink-0 text-xl",
                   side === "home" ? "text-volt-400" : "text-azure-400"
                 )}
               >
@@ -178,8 +180,10 @@ function TodayMatchCard({ match }: { match: Match }) {
       </div>
 
       <p className="mt-3.5 flex items-center gap-1.5 border-t border-line pt-3 text-xs text-zinc-500 transition-colors duration-200 group-hover:text-zinc-400">
-        <MapPin className="h-3 w-3" aria-hidden="true" />
-        {venue.city} · {venue.stadium}
+        <MapPin className="h-3 w-3 shrink-0" aria-hidden="true" />
+        <span className="truncate">
+          {venue.city} · {venue.stadium}
+        </span>
       </p>
     </Link>
   );
@@ -196,14 +200,16 @@ function ResultRow({ match }: { match: Match }) {
     <Link
       to={`/match/${match.id}`}
       aria-label={`Ergebnis: ${home.name} ${match.homeScore} zu ${match.awayScore} gegen ${away.name}`}
-      className="flex min-h-11 cursor-pointer items-center gap-3 rounded-xl px-3 py-2.5 transition-colors duration-200 hover:bg-white/[0.04] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-volt-400"
+      className="flex min-h-11 cursor-pointer items-center gap-2 rounded-xl px-2 py-2.5 transition-colors duration-200 hover:bg-white/[0.04] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-volt-400 sm:gap-3 sm:px-3"
     >
-      <span className="label-caps w-14 shrink-0">{match.group ? `Gr. ${match.group}` : "WM"}</span>
+      <span className="label-caps hidden w-14 shrink-0 sm:block">
+        {match.group ? `Gr. ${match.group}` : "WM"}
+      </span>
       <span className="flex min-w-0 flex-1 items-center justify-end gap-2 text-right">
         <span className="truncate text-sm font-medium text-zinc-200">{home.name}</span>
         <TeamCrest code={home.code} size="sm" />
       </span>
-      <span className="display-num shrink-0 rounded-lg bg-pitch-800 px-2.5 py-1 text-sm text-zinc-100">
+      <span className="display-num shrink-0 rounded-lg bg-pitch-800 px-2 py-1 text-sm text-zinc-100 sm:px-2.5">
         {match.homeScore}&thinsp;:&thinsp;{match.awayScore}
       </span>
       <span className="flex min-w-0 flex-1 items-center gap-2">
@@ -281,9 +287,14 @@ export default function Dashboard() {
   }
 
   return (
-    <motion.div variants={page} initial="hidden" animate="show" className="space-y-10">
+    <motion.div
+      variants={page}
+      initial="hidden"
+      animate="show"
+      className="space-y-8 sm:space-y-10"
+    >
       {/* Datenquelle */}
-      <motion.div variants={rise} className="-mb-6 flex justify-end">
+      <motion.div variants={rise} className="-mb-4 flex justify-end sm:-mb-6">
         <Pill tone={source === "live" ? "volt" : "neutral"}>
           {source === "live" ? "Live-Daten · ESPN" : "Demo-Daten · API offline"}
         </Pill>

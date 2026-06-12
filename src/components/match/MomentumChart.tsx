@@ -37,8 +37,8 @@ function MomentumTooltip({
   const verb =
     strength >= 55 ? "dominiert" : strength >= 25 ? "macht Druck" : "leicht am Drücker";
   return (
-    <div className="rounded-lg border border-line bg-pitch-850 px-3 py-2 shadow-xl">
-      <p className="font-mono text-xs text-zinc-200">
+    <div className="max-w-[240px] rounded-lg border border-line bg-pitch-850 px-3 py-2 shadow-xl">
+      <p className="font-mono text-xs leading-relaxed text-zinc-200">
         {point.minute}′ —{" "}
         <span className={isHome ? "text-volt-400" : "text-azure-400"}>
           {isHome ? homeName : awayName}
@@ -61,24 +61,24 @@ export function MomentumChart({
   className?: string;
 }) {
   return (
-    <div className={cn(className)}>
+    <div className={cn("min-w-0", className)}>
       <div className="mb-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
         <p className="font-display text-sm font-extrabold tracking-tight text-zinc-100">
           Attack Momentum
         </p>
-        <div className="flex items-center gap-4 text-xs text-zinc-400">
-          <span className="flex items-center gap-1.5">
-            <span className="h-2 w-2 rounded-full bg-volt-400" aria-hidden="true" />
-            {homeName}
+        <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1 text-xs text-zinc-400">
+          <span className="flex min-w-0 items-center gap-1.5">
+            <span className="h-2 w-2 shrink-0 rounded-full bg-volt-400" aria-hidden="true" />
+            <span className="truncate">{homeName}</span>
           </span>
-          <span className="flex items-center gap-1.5">
-            <span className="h-2 w-2 rounded-full bg-azure-400" aria-hidden="true" />
-            {awayName}
+          <span className="flex min-w-0 items-center gap-1.5">
+            <span className="h-2 w-2 shrink-0 rounded-full bg-azure-400" aria-hidden="true" />
+            <span className="truncate">{awayName}</span>
           </span>
         </div>
       </div>
 
-      <div className="h-40 w-full">
+      <div className="h-36 w-full min-w-0 sm:h-40">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart
             data={momentum}

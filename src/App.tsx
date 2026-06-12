@@ -25,7 +25,7 @@ function Navbar() {
   return (
     <header className="fixed inset-x-3 top-3 z-50 sm:inset-x-4 sm:top-4">
       <nav className="glass mx-auto flex max-w-6xl items-center justify-between rounded-2xl px-3 py-2 sm:px-5">
-        <NavLink to="/" className="flex items-center gap-2.5" aria-label="WM 2026 Startseite">
+        <NavLink to="/" className="flex min-h-11 shrink-0 items-center gap-2.5" aria-label="WM 2026 Startseite">
           <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-volt-400 font-display text-[13px] font-black tracking-tighter text-pitch-950">
             26
           </span>
@@ -42,7 +42,7 @@ function Navbar() {
               end={end}
               className={({ isActive }) =>
                 cn(
-                  "flex min-h-11 cursor-pointer items-center gap-2 rounded-xl px-3 text-sm font-medium transition-colors duration-200",
+                  "flex min-h-11 min-w-11 cursor-pointer items-center justify-center gap-2 rounded-xl px-2.5 text-sm font-medium transition-colors duration-200 sm:px-3",
                   isActive
                     ? "bg-white/[0.08] text-zinc-50"
                     : "text-zinc-400 hover:bg-white/[0.04] hover:text-zinc-200"
@@ -58,7 +58,7 @@ function Navbar() {
         {live.length > 0 ? (
           <NavLink
             to={`/match/${live[0].id}`}
-            className="flex min-h-11 cursor-pointer items-center gap-2 rounded-xl bg-volt-400/10 px-3 text-[12px] font-bold uppercase tracking-wider text-volt-400 transition-colors duration-200 hover:bg-volt-400/20"
+            className="flex min-h-11 min-w-11 shrink-0 cursor-pointer items-center justify-center gap-2 rounded-xl bg-volt-400/10 px-2.5 text-[12px] font-bold uppercase tracking-wider text-volt-400 transition-colors duration-200 hover:bg-volt-400/20 sm:px-3"
           >
             <Radio className="h-3.5 w-3.5 animate-pulse-live rounded-full" aria-hidden="true" />
             <span className="hidden sm:block">{live.length} Live</span>
@@ -73,9 +73,9 @@ function Navbar() {
 
 function PageFallback() {
   return (
-    <div className="space-y-4" aria-busy="true" aria-label="Inhalt wird geladen">
+    <div className="space-y-3 sm:space-y-4" aria-busy="true" aria-label="Inhalt wird geladen">
       <Skeleton className="h-40 w-full" />
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3">
         <Skeleton className="h-56" />
         <Skeleton className="h-56" />
         <Skeleton className="h-56 max-lg:hidden" />
@@ -111,7 +111,7 @@ export default function App() {
           </motion.div>
         </AnimatePresence>
       </main>
-      <footer className="border-t border-line py-6 text-center text-xs text-zinc-600">
+      <footer className="border-t border-line px-4 py-6 text-center text-xs text-zinc-600">
         WM 2026 · Spieldaten via ESPN-API, KI-Inhalte &amp; News simuliert · Kein offizielles FIFA-Produkt
       </footer>
     </div>

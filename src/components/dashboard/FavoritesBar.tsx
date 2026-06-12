@@ -56,7 +56,7 @@ export function FavoritesBar({ className }: { className?: string }) {
 
   return (
     <div className={className}>
-      <div className="flex items-center gap-2 overflow-x-auto pb-1">
+      <div className="flex items-center gap-2 overflow-x-auto overscroll-x-contain pb-1">
         <span className="label-caps mr-1 shrink-0">Favoriten</span>
 
         {visibleFavorites.map((code) => {
@@ -68,7 +68,7 @@ export function FavoritesBar({ className }: { className?: string }) {
             >
               <TeamCrest code={code} size="sm" />
               <span className="flex flex-col">
-                <span className="text-xs font-semibold leading-tight text-zinc-200">
+                <span className="max-w-36 truncate text-xs font-semibold leading-tight text-zinc-200">
                   {team.name}
                 </span>
                 <FormDots form={team.form} />
@@ -78,7 +78,7 @@ export function FavoritesBar({ className }: { className?: string }) {
                 onClick={() => remove(code)}
                 aria-label={`${team.name} aus Favoriten entfernen`}
                 title="Aus Favoriten entfernen"
-                className="-mr-1 flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg text-gold-400 transition-colors duration-200 hover:bg-white/[0.06] hover:text-zinc-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-volt-400"
+                className="-mr-2 flex h-11 w-11 cursor-pointer items-center justify-center rounded-lg text-gold-400 transition-colors duration-200 hover:bg-white/[0.06] hover:text-zinc-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-volt-400"
               >
                 <Star className="h-4 w-4 fill-current" aria-hidden="true" />
               </button>
@@ -112,7 +112,7 @@ export function FavoritesBar({ className }: { className?: string }) {
           initial={{ opacity: 0, y: -6 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.2, ease: "easeOut" }}
-          className="card mt-2 flex flex-wrap gap-1.5 p-3"
+          className="card mt-2 flex max-h-72 flex-wrap content-start gap-2 overflow-y-auto overscroll-contain p-3"
         >
           {available.length === 0 ? (
             <p className="text-xs text-zinc-500">

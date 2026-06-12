@@ -21,7 +21,7 @@ function PlayerDot({ player, side }: { player: PlayerSlot; side: "home" | "away"
   const left = side === "home" ? player.x : 100 - player.x;
   return (
     <div
-      className="absolute flex w-16 -translate-x-1/2 -translate-y-1/2 flex-col items-center"
+      className="absolute flex w-14 -translate-x-1/2 -translate-y-1/2 flex-col items-center sm:w-16"
       style={{ left: `${left}%`, top: `${top}%` }}
     >
       <span
@@ -82,16 +82,16 @@ export function PitchLineups({ match, className }: { match: Match; className?: s
     <Card className={cn("p-4 sm:p-6", className)}>
       {/* Formationen */}
       <div className="mb-4 flex flex-wrap items-center justify-center gap-x-4 gap-y-2">
-        <span className="flex items-center gap-2">
+        <span className="flex min-w-0 items-center gap-2">
           <TeamCrest code={home.code} size="sm" />
-          <span className="text-sm font-semibold text-zinc-200">{home.name}</span>
+          <span className="truncate text-sm font-semibold text-zinc-200">{home.name}</span>
         </span>
         <span className="font-mono text-sm font-bold text-zinc-300">
           {lineups.home.formation} <span className="font-medium text-zinc-600">vs</span>{" "}
           {lineups.away.formation}
         </span>
-        <span className="flex items-center gap-2">
-          <span className="text-sm font-semibold text-zinc-200">{away.name}</span>
+        <span className="flex min-w-0 items-center gap-2">
+          <span className="truncate text-sm font-semibold text-zinc-200">{away.name}</span>
           <TeamCrest code={away.code} size="sm" />
         </span>
       </div>

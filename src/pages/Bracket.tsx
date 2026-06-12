@@ -179,7 +179,7 @@ export default function Bracket() {
     return (
       <div className="flex gap-5 overflow-hidden" aria-busy="true" aria-label="Turnierbaum wird geladen">
         {Array.from({ length: 4 }, (_, i) => (
-          <Skeleton key={i} className="h-[60vh] w-60 shrink-0" />
+          <Skeleton key={i} className="h-[60vh] w-56 shrink-0 sm:w-60" />
         ))}
       </div>
     );
@@ -216,7 +216,7 @@ export default function Bracket() {
         Horizontal scrollen, um alle Runden zu sehen
       </motion.p>
 
-      <div className="overflow-x-auto pb-4" role="region" aria-label="Turnierbaum">
+      <div className="overflow-x-auto overscroll-x-contain pb-4" role="region" aria-label="Turnierbaum">
         <div className="flex min-w-max items-stretch">
           {rounds.map((round, ri) => {
             const isFinalRound = ri === rounds.length - 1;
@@ -229,8 +229,8 @@ export default function Bracket() {
                 transition={{ delay: ri * 0.09 }}
                 aria-label={round.title}
                 className={cn(
-                  "flex w-60 shrink-0 flex-col",
-                  ri > 0 && "ml-5 border-l border-line/70 pl-5"
+                  "flex w-56 shrink-0 flex-col sm:w-60",
+                  ri > 0 && "ml-4 border-l border-line/70 pl-4 sm:ml-5 sm:pl-5"
                 )}
               >
                 <header className="mb-4">

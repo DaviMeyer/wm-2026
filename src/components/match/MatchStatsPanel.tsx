@@ -15,7 +15,7 @@ export function MatchStatsPanel({ match, className }: { match: Match; className?
 
   if (!stats) {
     return (
-      <Card className={cn("p-8 text-center", className)}>
+      <Card className={cn("p-6 text-center sm:p-8", className)}>
         <BarChart3 className="mx-auto h-8 w-8 text-zinc-600" aria-hidden="true" />
         <p className="mt-3 font-display text-sm font-extrabold text-zinc-200">
           Noch keine Statistiken
@@ -53,7 +53,7 @@ export function MatchStatsPanel({ match, className }: { match: Match; className?
         </p>
         <TeamCrest code={match.awayCode} size="sm" />
       </div>
-      <div className="space-y-5">
+      <div className="space-y-4 sm:space-y-5">
         {rows.map((row) => (
           <StatBar
             key={row.label}

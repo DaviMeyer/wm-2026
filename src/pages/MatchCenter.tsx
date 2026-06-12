@@ -42,7 +42,7 @@ const fmtPct = (v: number) => `${v} %`;
 
 function NotFound() {
   return (
-    <Card className="mx-auto mt-8 max-w-md p-8 text-center">
+    <Card className="mx-auto mt-8 max-w-md p-6 text-center sm:p-8">
       <SearchX className="mx-auto h-10 w-10 text-zinc-600" aria-hidden="true" />
       <h1 className="mt-4 font-display text-xl font-extrabold text-zinc-50">
         Spiel nicht gefunden
@@ -101,7 +101,7 @@ function MatchHeader({ match }: { match: Match }) {
         <div className="px-1 text-center">
           {match.status === "upcoming" ? (
             <>
-              <p className="display-num text-5xl text-zinc-600 sm:text-7xl" aria-label="Spiel noch nicht gestartet">
+              <p className="display-num text-4xl text-zinc-600 sm:text-5xl md:text-7xl" aria-label="Spiel noch nicht gestartet">
                 –
               </p>
               <p className="mt-2 font-mono text-sm font-semibold text-zinc-200">
@@ -111,7 +111,7 @@ function MatchHeader({ match }: { match: Match }) {
             </>
           ) : (
             <>
-              <p className="display-num text-6xl text-zinc-50 sm:text-8xl">
+              <p className="display-num text-4xl text-zinc-50 sm:text-6xl md:text-8xl">
                 {match.homeScore}
                 <span className="mx-1 text-zinc-600 sm:mx-2">:</span>
                 {match.awayScore}
@@ -148,7 +148,7 @@ function OverviewTab({ match }: { match: Match }) {
           {match.prediction ? (
             <AIPredictionCard match={match} />
           ) : (
-            <Card className="p-8 text-center">
+            <Card className="p-6 text-center sm:p-8">
               <BrainCircuit className="mx-auto h-8 w-8 text-zinc-600" aria-hidden="true" />
               <p className="mt-3 text-sm text-zinc-500">
                 Die KI-Prognose für diese Partie wird derzeit berechnet.
@@ -226,7 +226,7 @@ function OverviewTab({ match }: { match: Match }) {
 function AITab({ match }: { match: Match }) {
   if (!match.prediction) {
     return (
-      <Card className="mx-auto max-w-lg p-8 text-center">
+      <Card className="mx-auto max-w-lg p-6 text-center sm:p-8">
         <BrainCircuit className="mx-auto h-8 w-8 text-zinc-600" aria-hidden="true" />
         <p className="mt-3 font-display text-sm font-extrabold text-zinc-200">
           Keine KI-Analyse verfügbar
@@ -275,7 +275,7 @@ export default function MatchCenter() {
 
       {/* Tab-Navigation */}
       <motion.div variants={fadeUp}>
-        <div role="tablist" aria-label="Match-Center-Bereiche" className="flex gap-1 overflow-x-auto border-b border-line">
+        <div role="tablist" aria-label="Match-Center-Bereiche" className="flex gap-1 overflow-x-auto overscroll-x-contain border-b border-line">
           {TABS.map((t) => (
             <button
               key={t.id}
@@ -283,7 +283,7 @@ export default function MatchCenter() {
               aria-selected={tab === t.id}
               onClick={() => setTab(t.id)}
               className={cn(
-                "relative min-h-11 cursor-pointer whitespace-nowrap rounded-t-lg px-4 text-sm font-medium transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-volt-400/60",
+                "relative min-h-11 shrink-0 cursor-pointer whitespace-nowrap rounded-t-lg px-3 text-sm font-medium transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-volt-400/60 sm:px-4",
                 tab === t.id ? "text-zinc-50" : "text-zinc-500 hover:text-zinc-300"
               )}
             >

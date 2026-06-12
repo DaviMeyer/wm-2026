@@ -45,7 +45,7 @@ function GroupTable({ group, allRows }: { group: string; allRows: StandingRow[] 
   return (
     <motion.section
       variants={cardVariants}
-      className="card overflow-hidden"
+      className="card min-w-0 overflow-hidden"
       aria-label={`Tabelle Gruppe ${group}`}
     >
       <header className="flex items-baseline justify-between border-b border-line px-4 py-3">
@@ -55,7 +55,7 @@ function GroupTable({ group, allRows }: { group: string; allRows: StandingRow[] 
         <span className="font-mono text-[11px] text-zinc-600">Gruppenphase</span>
       </header>
 
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto overscroll-x-contain">
         <table className="w-full min-w-[520px] border-collapse text-sm">
           <thead>
             <tr className="border-b border-line">
@@ -210,7 +210,7 @@ export default function Standings() {
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3, delay: 0.08, ease: "easeOut" }}
-        className="mb-6 flex flex-wrap gap-2"
+        className="mb-6 flex gap-2 overflow-x-auto overscroll-x-contain py-1 sm:flex-wrap sm:overflow-x-visible sm:py-0"
         role="group"
         aria-label="Gruppen filtern"
       >
@@ -223,7 +223,7 @@ export default function Standings() {
               onClick={() => setFilter(g)}
               aria-pressed={active}
               className={cn(
-                "min-h-11 min-w-11 cursor-pointer rounded-full border px-4 text-sm font-semibold transition-colors duration-200",
+                "min-h-11 min-w-11 shrink-0 cursor-pointer rounded-full border px-4 text-sm font-semibold transition-colors duration-200",
                 "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-volt-400",
                 active
                   ? "border-volt-400 bg-volt-400 text-pitch-950"
@@ -254,18 +254,18 @@ export default function Standings() {
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.3, delay: 0.3 }}
-        className="mt-5 flex flex-wrap items-center gap-x-6 gap-y-2 text-xs text-zinc-500"
+        className="mt-5 flex flex-col gap-2 text-xs text-zinc-500 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-6 sm:gap-y-2"
       >
         <span className="flex items-center gap-2">
-          <span className="h-3.5 w-1 rounded-full bg-volt-400" aria-hidden="true" />
+          <span className="h-3.5 w-1 shrink-0 rounded-full bg-volt-400" aria-hidden="true" />
           Platz 1–2: direkt in der K.-o.-Runde (32er-Runde)
         </span>
         <span className="flex items-center gap-2">
-          <span className="h-3.5 w-1 rounded-full bg-gold-400" aria-hidden="true" />
+          <span className="h-3.5 w-1 shrink-0 rounded-full bg-gold-400" aria-hidden="true" />
           Platz 3: möglicher bester Gruppendritter
         </span>
         <span className="flex items-center gap-2">
-          <span className="h-3.5 w-1 rounded-full bg-pitch-700" aria-hidden="true" />
+          <span className="h-3.5 w-1 shrink-0 rounded-full bg-pitch-700" aria-hidden="true" />
           Platz 4: Ausscheiden droht
         </span>
       </motion.div>
