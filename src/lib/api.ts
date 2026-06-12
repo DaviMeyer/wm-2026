@@ -7,6 +7,7 @@
 import {
   registerTeam,
   registerVenue,
+  teamByCode,
   VENUES,
   type Lineup,
   type Match,
@@ -131,18 +132,33 @@ function mapStatus(state?: string): MatchStatus {
   return "upcoming";
 }
 
-/** Implizite Wahrscheinlichkeit aus US-Moneyline-Quote. */
+/** Implizite Wahrscheinlichkeit aus US-Moneyline-Quote ("-120", "+380", "EVEN", Zahl). */
 function americanToProb(ml: unknown): number | undefined {
+  if (typeof ml === "string" && /even/i.test(ml)) return 0.5;
   const v = Number(ml);
   if (!Number.isFinite(v) || v === 0) return undefined;
   return v < 0 ? -v / (-v + 100) : 100 / (v + 100);
 }
 
+/**
+ * Moneyline einer Seite aus den verschiedenen ESPN-Formaten ziehen:
+ * neu: odds.moneyline.{home|away|draw}.{close|open}.odds (Strings),
+ * alt: odds.{home|away}TeamOdds.moneyLine bzw. drawOdds.moneyLine (Zahlen).
+ */
+function sideProb(odds: Json, side: "home" | "away" | "draw"): number | undefined {
+  const nested = odds?.moneyline?.[side];
+  const fromNested = americanToProb(nested?.close?.odds ?? nested?.open?.odds);
+  if (fromNested !== undefined) return fromNested;
+  const legacy =
+    side === "draw" ? odds?.drawOdds?.moneyLine : odds?.[`${side}TeamOdds`]?.moneyLine;
+  return americanToProb(legacy);
+}
+
 /** Prognose aus echten Buchmacher-Quoten (DraftKings via ESPN). */
 function predictionFromOdds(odds: Json, homeName: string, awayName: string): Prediction | undefined {
-  const h = americanToProb(odds?.homeTeamOdds?.moneyLine);
-  const d = americanToProb(odds?.drawOdds?.moneyLine);
-  const a = americanToProb(odds?.awayTeamOdds?.moneyLine);
+  const h = sideProb(odds, "home");
+  const d = sideProb(odds, "draw");
+  const a = sideProb(odds, "away");
   if (h === undefined || a === undefined) return undefined;
   const dd = d ?? Math.max(0.05, 1 - h - a);
   const sum = h + dd + a;
@@ -168,6 +184,55 @@ function predictionFromOdds(odds: Json, homeName: string, awayName: string): Pre
   };
 }
 
+/**
+ * Fallback-Prognose aus den Team-Ratings (logistisches Modell) –
+ * greift, wenn ESPN keine verwertbaren Quoten liefert.
+ */
+function predictionFromRatings(homeCode: string, awayCode: string): Prediction {
+  const home = teamByCode(homeCode);
+  const away = teamByCode(awayCode);
+  const pHomeRaw = 1 / (1 + Math.pow(10, (away.rating - home.rating) / 25));
+  // Je enger die Teams beieinander liegen, desto wahrscheinlicher das Remis
+  const closeness = Math.max(0, 1 - Math.abs(home.rating - away.rating) / 25);
+  const drawShare = 0.2 + 0.08 * closeness;
+  const homePct = Math.round(pHomeRaw * (1 - drawShare) * 100);
+  const awayPct = Math.round((1 - pHomeRaw) * (1 - drawShare) * 100);
+  const drawPct = Math.max(0, 100 - homePct - awayPct);
+  const fav = homePct >= awayPct ? home : away;
+  const other = fav === home ? away : home;
+  const favPct = Math.max(homePct, awayPct);
+  const wins = (form: typeof home.form) => form.filter((f) => f === "S").length;
+  return {
+    home: homePct,
+    draw: drawPct,
+    away: awayPct,
+    confidence: favPct >= 60 ? "hoch" : favPct >= 45 ? "mittel" : "niedrig",
+    keyFactors: [
+      `Modellbasiert: Team-Stärke ${home.name} ${home.rating} vs. ${away.name} ${away.rating}`,
+      home.form.length > 0 && away.form.length > 0
+        ? `Form (letzte 5): ${home.name} ${wins(home.form)} Siege, ${away.name} ${wins(away.form)} Siege`
+        : `${fav.name} geht als Favorit in die Partie (${favPct} %)`,
+      `Remis-Wahrscheinlichkeit: ${drawPct} %`,
+    ],
+    tacticalSummary:
+      `Das Stärkemodell sieht ${fav.name} mit ${favPct} % vorn. ${other.name} dürfte kompakt ` +
+      `verteidigen und auf Umschaltmomente sowie Standards setzen – je länger das Spiel torlos ` +
+      `bleibt, desto realistischer wird das Remis (${drawPct} %).`,
+  };
+}
+
+/** ESPN-Formstring ("WWDLW") → unser Format. */
+function mapForm(form: unknown): ("S" | "U" | "N")[] | undefined {
+  if (typeof form !== "string" || form.length === 0) return undefined;
+  const result: ("S" | "U" | "N")[] = [];
+  for (const ch of form.toUpperCase().slice(0, 5)) {
+    if (ch === "W") result.push("S");
+    else if (ch === "D") result.push("U");
+    else if (ch === "L") result.push("N");
+  }
+  return result.length > 0 ? result : undefined;
+}
+
 function mapEvent(ev: Json): Match | null {
   const comp = ev?.competitions?.[0];
   if (!comp) return null;
@@ -178,6 +243,10 @@ function mapEvent(ev: Json): Match | null {
 
   const homeCode = ensureTeam(home.team);
   const awayCode = ensureTeam(away.team);
+  const homeForm = mapForm(home.form);
+  const awayForm = mapForm(away.form);
+  if (homeForm) registerTeam({ code: homeCode, form: homeForm });
+  if (awayForm) registerTeam({ code: awayCode, form: awayForm });
   const status = mapStatus(comp.status?.type?.state);
   const minute = parseInt(String(comp.status?.displayClock ?? ""), 10);
   const groupNote: string | undefined = (comp.notes ?? [])
@@ -197,12 +266,16 @@ function mapEvent(ev: Json): Match | null {
     venueId: ensureVenue(comp.venue),
   };
 
-  if (status === "upcoming" && comp.odds?.[0]) {
-    match.prediction = predictionFromOdds(
-      comp.odds[0],
-      GERMAN_NAMES[homeCode] ?? home.team.displayName,
-      GERMAN_NAMES[awayCode] ?? away.team.displayName
-    );
+  if (status === "upcoming") {
+    if (comp.odds?.[0]) {
+      match.prediction = predictionFromOdds(
+        comp.odds[0],
+        GERMAN_NAMES[homeCode] ?? home.team.displayName,
+        GERMAN_NAMES[awayCode] ?? away.team.displayName
+      );
+    }
+    // Fallback: ohne (parsebare) Quoten rechnet das Ratings-Modell
+    match.prediction ??= predictionFromRatings(homeCode, awayCode);
   }
   return match;
 }
