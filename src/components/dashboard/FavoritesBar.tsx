@@ -3,6 +3,7 @@ import { motion } from "framer-motion";
 import { ChevronDown, Plus, Star } from "lucide-react";
 import { DEFAULT_FAVORITES, TEAMS, teamByCode } from "../../data/wm";
 import { FormDots, TeamCrest } from "../ui";
+import { useWmData } from "../../lib/useWmData";
 import { cn } from "../../lib/utils";
 
 const STORAGE_KEY = "wm26-favorites";
@@ -28,6 +29,9 @@ function loadFavorites(): string[] {
  * aufklappbare Liste zum Hinzufügen weiterer Teams.
  */
 export function FavoritesBar({ className }: { className?: string }) {
+  // Abonniert den Daten-Store: Nach dem Live-Sync verlieren nicht
+  // qualifizierte Teams ihre Gruppe und fallen aus der Auswahl.
+  useWmData();
   const [favorites, setFavorites] = useState<string[]>(loadFavorites);
   const [pickerOpen, setPickerOpen] = useState(false);
 
@@ -44,7 +48,9 @@ export function FavoritesBar({ className }: { className?: string }) {
   const add = (code: string) =>
     setFavorites((prev) => (prev.includes(code) ? prev : [...prev, code]));
 
-  const available = TEAMS.filter((t) => !favorites.includes(t.code)).sort(
+  // Nur echte WM-Teilnehmer (Teams mit Gruppe) anzeigen
+  const visibleFavorites = favorites.filter((code) => teamByCode(code).group);
+  const available = TEAMS.filter((t) => t.group && !favorites.includes(t.code)).sort(
     (a, b) => a.name.localeCompare(b.name, "de")
   );
 
@@ -53,7 +59,7 @@ export function FavoritesBar({ className }: { className?: string }) {
       <div className="flex items-center gap-2 overflow-x-auto pb-1">
         <span className="label-caps mr-1 shrink-0">Favoriten</span>
 
-        {favorites.map((code) => {
+        {visibleFavorites.map((code) => {
           const team = teamByCode(code);
           return (
             <span
