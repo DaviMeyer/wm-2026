@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { motion } from "framer-motion";
 import { ChevronDown, Plus, Star } from "lucide-react";
 import { DEFAULT_FAVORITES, TEAMS, teamByCode } from "../../data/wm";
@@ -28,7 +28,14 @@ function loadFavorites(): string[] {
  * Chips mit TeamCrest + Formkurve, Stern zum Entfernen,
  * aufklappbare Liste zum Hinzufügen weiterer Teams.
  */
-export function FavoritesBar({ className }: { className?: string }) {
+export function FavoritesBar({
+  className,
+  trailing,
+}: {
+  className?: string;
+  /** Rechtsbündiges Extra (z. B. Datenquellen-Pill) – außerhalb des Scrollers. */
+  trailing?: ReactNode;
+}) {
   // Abonniert den Daten-Store: Nach dem Live-Sync verlieren nicht
   // qualifizierte Teams ihre Gruppe und fallen aus der Auswahl.
   useWmData();
@@ -56,8 +63,9 @@ export function FavoritesBar({ className }: { className?: string }) {
 
   return (
     <div className={className}>
-      <div className="flex items-center gap-2 overflow-x-auto overscroll-x-contain pb-1">
-        <span className="label-caps mr-1 shrink-0">Favoriten</span>
+      <div className="flex items-center gap-3">
+        <div className="flex min-w-0 flex-1 items-center gap-2 overflow-x-auto overscroll-x-contain pb-1">
+          <span className="label-caps mr-1 shrink-0">Favoriten</span>
 
         {visibleFavorites.map((code) => {
           const team = teamByCode(code);
@@ -105,6 +113,9 @@ export function FavoritesBar({ className }: { className?: string }) {
             aria-hidden="true"
           />
         </button>
+        </div>
+
+        {trailing && <div className="shrink-0 whitespace-nowrap pb-1">{trailing}</div>}
       </div>
 
       {pickerOpen && (

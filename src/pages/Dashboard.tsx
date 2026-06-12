@@ -293,16 +293,15 @@ export default function Dashboard() {
       animate="show"
       className="space-y-8 sm:space-y-10"
     >
-      {/* Datenquelle */}
-      <motion.div variants={rise} className="-mb-4 flex justify-end sm:-mb-6">
-        <Pill tone={source === "live" ? "volt" : "neutral"}>
-          {source === "live" ? "Live-Daten · ESPN" : "Demo-Daten · API offline"}
-        </Pill>
-      </motion.div>
-
-      {/* Favoriten-Schnellzugriff */}
+      {/* Favoriten-Schnellzugriff + Datenquelle */}
       <motion.section variants={rise} aria-label="Favoriten-Schnellzugriff">
-        <FavoritesBar />
+        <FavoritesBar
+          trailing={
+            <Pill tone={source === "live" ? "volt" : "neutral"}>
+              {source === "live" ? "Live-Daten · ESPN" : "Demo-Daten · API offline"}
+            </Pill>
+          }
+        />
       </motion.section>
 
       {/* Hero: Live-Match + KI-Prognose */}

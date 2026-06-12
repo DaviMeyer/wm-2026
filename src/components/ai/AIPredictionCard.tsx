@@ -58,7 +58,6 @@ export function AIPredictionCard({
                 {home.name}
               </span>
             </span>
-            <span className="label-caps shrink-0">Remis</span>
             <span className="flex min-w-0 items-center gap-2">
               <span className="truncate text-xs font-medium text-zinc-300">
                 {away.name}
@@ -67,12 +66,22 @@ export function AIPredictionCard({
             </span>
           </div>
 
-          <div className="mt-2.5 flex items-baseline justify-between font-mono text-sm tabular-nums">
-            <span className="font-semibold text-volt-400">
+          {/* Remis-Label sitzt über dem grauen Balkensegment (geklemmt,
+              damit es nicht mit den Rand-Prozenten kollidiert) */}
+          <div className="relative mt-2.5 h-6 font-mono text-sm tabular-nums">
+            <span className="absolute left-0 top-0 font-semibold text-volt-400">
               {prediction.home}&nbsp;%
             </span>
-            <span className="text-zinc-400">{prediction.draw}&nbsp;%</span>
-            <span className="font-semibold text-azure-400">
+            <span
+              className="absolute top-0 -translate-x-1/2 whitespace-nowrap text-zinc-400"
+              style={{
+                left: `clamp(5.5rem, ${prediction.home + prediction.draw / 2}%, calc(100% - 5.5rem))`,
+              }}
+            >
+              <span className="label-caps mr-1.5">Remis</span>
+              {prediction.draw}&nbsp;%
+            </span>
+            <span className="absolute right-0 top-0 font-semibold text-azure-400">
               {prediction.away}&nbsp;%
             </span>
           </div>
