@@ -338,6 +338,15 @@ export default function Dashboard() {
             Heute stehen keine Partien an.
           </p>
         )}
+        <div className="mt-3 flex justify-end">
+          <Link
+            to="/spielplan"
+            className="flex min-h-11 cursor-pointer items-center gap-1 rounded-xl px-2 text-sm font-semibold text-volt-400 transition-colors duration-200 hover:text-volt-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-volt-400"
+          >
+            Kompletter Spielplan
+            <ChevronRight className="h-4 w-4" aria-hidden="true" />
+          </Link>
+        </div>
       </motion.section>
 
       {/* Gestern */}

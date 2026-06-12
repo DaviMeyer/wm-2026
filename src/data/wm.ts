@@ -4,12 +4,13 @@
 /* ------------------------------------------------------------------ */
 
 export interface Team {
-  code: string; // FIFA-Trigramm
+  code: string; // FIFA-Trigramm bzw. eindeutiger Platzhalter-Code
   name: string;
   colors: [string, string]; // Primär-/Sekundärfarbe für TeamCrest
   rating: number; // 0–100, Basis für KI-Prognosen & Simulator
-  group: string; // "A" … "L"
+  group: string; // "A" … "L"; leer = nicht qualifiziert/Platzhalter
   form: ("S" | "U" | "N")[]; // Sieg/Unentschieden/Niederlage, letzte 5
+  short?: string; // Kurzlabel fürs Crest, falls code zu lang (z. B. "3RD")
 }
 
 export interface Venue {
@@ -181,6 +182,7 @@ export function registerTeam(partial: {
   rating?: number;
   group?: string;
   form?: Team["form"];
+  short?: string;
 }): Team {
   const existing = TEAMS.find((t) => t.code === partial.code);
   if (existing) {
@@ -195,6 +197,7 @@ export function registerTeam(partial: {
     rating: partial.rating ?? 71,
     group: partial.group ?? "",
     form: partial.form ?? [],
+    short: partial.short,
   };
   TEAMS.push(team);
   return team;

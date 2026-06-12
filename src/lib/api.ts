@@ -88,7 +88,52 @@ function normalizeColor(c?: string): string | undefined {
   return /^[0-9a-fA-F]{6}$/.test(hex) ? `#${hex}` : undefined;
 }
 
+/**
+ * K.-o.-Platzhalter erkennen ("Group A Winner", "Third Place Group A/B/C/D/F",
+ * "Winner Match 74", "Loser Match 101") und eindeutschen. Eindeutiger Code pro Slot, kurzes
+ * Crest-Label, keine Gruppe (damit Favoriten/Simulator sie ignorieren).
+ */
+function placeholderTeam(apiTeam: Json): { code: string; short: string; name: string } | null {
+  const dn = String(apiTeam?.displayName ?? "");
+  let m = dn.match(/^Group ([A-L]) Winner$/i);
+  if (m) {
+    const g = m[1].toUpperCase();
+    return { code: `1${g}`, short: `1${g}`, name: `Sieger Gruppe ${g}` };
+  }
+  m = dn.match(/^Group ([A-L]) (?:2nd|Second) Place$/i);
+  if (m) {
+    const g = m[1].toUpperCase();
+    return { code: `2${g}`, short: `2${g}`, name: `2. Gruppe ${g}` };
+  }
+  m = dn.match(/Third Place[,]? Group[s]? ([A-Z/ ]+)/i);
+  if (m) {
+    const letters = m[1].replace(/[^A-Za-z]/g, "").toUpperCase();
+    return {
+      code: `3RD${letters}`,
+      short: "3RD",
+      name: `Dritter ${m[1].trim().replace(/\s/g, "")}`,
+    };
+  }
+  m = dn.match(/^(Winner|Loser) (?:of )?(?:Match|Game) ?(\d+)/i);
+  if (m) {
+    const winner = m[1].toLowerCase() === "winner";
+    const code = `${winner ? "W" : "L"}${m[2]}`;
+    return { code, short: code, name: `${winner ? "Sieger" : "Verlierer"} Spiel ${m[2]}` };
+  }
+  return null;
+}
+
 function ensureTeam(apiTeam: Json): string {
+  const placeholder = placeholderTeam(apiTeam);
+  if (placeholder) {
+    registerTeam({
+      code: placeholder.code,
+      name: placeholder.name,
+      short: placeholder.short,
+      colors: ["#27272e", "#3f3f46"],
+    });
+    return placeholder.code;
+  }
   const code: string = String(apiTeam?.abbreviation ?? "???").toUpperCase();
   const c1 = normalizeColor(apiTeam?.color);
   const c2 = normalizeColor(apiTeam?.alternateColor);
@@ -266,12 +311,18 @@ function mapEvent(ev: Json): Match | null {
     venueId: ensureVenue(comp.venue),
   };
 
-  if (status === "upcoming") {
+  // Für Platzhalter-Paarungen ("Sieger Gruppe A" etc.) keine Prognose —
+  // das Ratings-Modell würde sonst Schein-Wahrscheinlichkeiten erfinden.
+  const hasPlaceholder =
+    placeholderTeam(home.team) !== null || placeholderTeam(away.team) !== null;
+
+  if (status === "upcoming" && !hasPlaceholder) {
     if (comp.odds?.[0]) {
+      // Namen aus der Registry: dort steht der deutsche Name (z. B. "Kanada")
       match.prediction = predictionFromOdds(
         comp.odds[0],
-        GERMAN_NAMES[homeCode] ?? home.team.displayName,
-        GERMAN_NAMES[awayCode] ?? away.team.displayName
+        teamByCode(homeCode).name,
+        teamByCode(awayCode).name
       );
     }
     // Fallback: ohne (parsebare) Quoten rechnet das Ratings-Modell

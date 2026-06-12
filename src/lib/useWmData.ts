@@ -17,6 +17,8 @@ export interface WmData {
   source: DataSource;
   matches: Match[];
   standings: Record<string, StandingRow[]>;
+  /** Kompletter Turnier-Spielplan (lazy geladen, null = noch nicht da). */
+  schedule: Match[] | null;
 }
 
 let store: WmData = {
@@ -24,6 +26,7 @@ let store: WmData = {
   source: "mock",
   matches: MATCHES,
   standings: STANDINGS,
+  schedule: null,
 };
 
 const listeners = new Set<() => void>();
@@ -42,6 +45,20 @@ const addDays = (d: Date, days: number) => {
 
 let groupOf: Record<string, string> = {};
 
+/**
+ * Gruppen-Fallback für Spiele ohne "Group X"-Note: nur setzen, wenn beide
+ * Teams derselben Gruppe angehören. Sonst würden K.-o.-Spiele, sobald die
+ * Paarung feststeht, fälschlich die Gruppe des Heimteams erben (und z. B.
+ * im Spielplan-Filter als Gruppenphase auftauchen).
+ */
+function applyGroupFallback(matches: Match[]): void {
+  for (const m of matches) {
+    if (m.group) continue;
+    const g = groupOf[m.homeCode];
+    if (g && groupOf[m.awayCode] === g) m.group = g;
+  }
+}
+
 async function loadAll(): Promise<void> {
   try {
     const standings = await fetchStandings();
@@ -50,9 +67,7 @@ async function loadAll(): Promise<void> {
 
     const now = new Date();
     const matches = await fetchMatches(addDays(now, -1), addDays(now, 1));
-    for (const m of matches) {
-      if (!m.group) m.group = groupOf[m.homeCode] ?? "";
-    }
+    applyGroupFallback(matches);
     setStore({ loading: false, source: "live", matches, standings: standings.table });
   } catch (err) {
     console.warn("[WM26] ESPN-API nicht erreichbar – Demo-Daten aktiv.", err);
@@ -66,10 +81,10 @@ async function refreshScores(): Promise<void> {
   try {
     const now = new Date();
     const fresh = await fetchMatches(addDays(now, -1), addDays(now, 1));
+    applyGroupFallback(fresh);
     const prev = new Map(store.matches.map((m) => [m.id, m]));
     const merged = fresh.map((m) => {
       const old = prev.get(m.id);
-      if (!m.group) m.group = groupOf[m.homeCode] ?? "";
       return old
         ? { ...m, stats: old.stats ?? m.stats, lineups: old.lineups ?? m.lineups, momentum: old.momentum, referee: old.referee ?? m.referee }
         : m;
@@ -102,13 +117,71 @@ export function useWmData(): WmData {
   return useSyncExternalStore(subscribe, getSnapshot);
 }
 
+/* ------------------------- Spielplan ------------------------------- */
+
+// Feste Turnierdaten (lokale Zeit): 11. Juni bis 19. Juli 2026
+const TOURNAMENT_START = new Date(2026, 5, 11);
+const TOURNAMENT_END = new Date(2026, 6, 19);
+
+let scheduleRequested = false;
+
+async function loadSchedule(): Promise<void> {
+  if (scheduleRequested) return;
+  scheduleRequested = true;
+  try {
+    const matches = await fetchMatches(TOURNAMENT_START, TOURNAMENT_END);
+    applyGroupFallback(matches);
+    setStore({ schedule: matches });
+  } catch (err) {
+    console.warn("[WM26] Spielplan konnte nicht geladen werden.", err);
+    // Fallback: wenigstens das 3-Tage-Fenster des Kern-Stores zeigen
+    setStore({ schedule: [...store.matches] });
+  }
+}
+
+/** Kompletter Turnier-Spielplan; Live-Spielstände überlagern die Plandaten. */
+export function useSchedule(): { schedule: Match[]; loading: boolean; source: DataSource } {
+  const data = useWmData();
+
+  useEffect(() => {
+    if (!data.loading && data.source === "live" && data.schedule === null) {
+      void loadSchedule();
+    }
+  }, [data.loading, data.source, data.schedule]);
+
+  const base =
+    data.schedule ?? (data.source === "mock" && !data.loading ? data.matches : null);
+  if (base === null) {
+    return { schedule: [], loading: true, source: data.source };
+  }
+  // Kern-Store gewinnt: Polling hält dort Live-Scores aktuell
+  const fresh = new Map(data.matches.map((m) => [m.id, m]));
+  const schedule = base.map((m) => fresh.get(m.id) ?? m);
+  return { schedule, loading: false, source: data.source };
+}
+
 /* --------------------- Einzelspiel + Details ----------------------- */
 
 const enriched = new Set<string>();
 
 export function useMatch(id: string | undefined): { match: Match | undefined; loading: boolean } {
   const data = useWmData();
-  const match = id ? data.matches.find((m) => m.id === id) : undefined;
+  const match = id
+    ? (data.matches.find((m) => m.id === id) ?? data.schedule?.find((m) => m.id === id))
+    : undefined;
+
+  // Deep-Link auf ein Spiel außerhalb des 3-Tage-Fensters (z. B. Reload auf
+  // einer Spielplan-Partie): Spielplan nachladen, statt "nicht gefunden".
+  const needSchedule =
+    id !== undefined &&
+    !data.loading &&
+    data.source === "live" &&
+    match === undefined &&
+    data.schedule === null;
+  useEffect(() => {
+    if (needSchedule) void loadSchedule();
+  }, [needSchedule]);
+
   const wantDetails =
     data.source === "live" &&
     match !== undefined &&
@@ -120,23 +193,24 @@ export function useMatch(id: string | undefined): { match: Match | undefined; lo
     enriched.add(match.id);
     fetchMatchDetails(match.id)
       .then((details) => {
+        const apply = (m: Match): Match =>
+          m.id === match.id
+            ? {
+                ...m,
+                stats: details.stats ?? m.stats,
+                lineups: details.lineups ?? m.lineups,
+                referee: details.referee ?? m.referee,
+              }
+            : m;
         setStore({
-          matches: store.matches.map((m) =>
-            m.id === match.id
-              ? {
-                  ...m,
-                  stats: details.stats ?? m.stats,
-                  lineups: details.lineups ?? m.lineups,
-                  referee: details.referee ?? m.referee,
-                }
-              : m
-          ),
+          matches: store.matches.map(apply),
+          schedule: store.schedule ? store.schedule.map(apply) : store.schedule,
         });
       })
       .catch(() => enriched.delete(match.id));
   }, [wantDetails, match]);
 
-  return { match, loading: data.loading };
+  return { match, loading: data.loading || needSchedule };
 }
 
 /* ------------------------- Selektoren ------------------------------ */

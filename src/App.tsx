@@ -1,19 +1,21 @@
 import { Suspense, lazy } from "react";
 import { NavLink, Route, Routes, useLocation } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
-import { BrainCircuit, LayoutGrid, ListOrdered, Trophy, Radio } from "lucide-react";
+import { BrainCircuit, CalendarDays, LayoutGrid, ListOrdered, Trophy, Radio } from "lucide-react";
 import { liveOf, useWmData } from "./lib/useWmData";
 import { Skeleton } from "./components/ui";
 import { cn } from "./lib/utils";
 
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const MatchCenter = lazy(() => import("./pages/MatchCenter"));
+const Schedule = lazy(() => import("./pages/Schedule"));
 const Standings = lazy(() => import("./pages/Standings"));
 const Bracket = lazy(() => import("./pages/Bracket"));
 const Simulator = lazy(() => import("./pages/Simulator"));
 
 const NAV = [
   { to: "/", label: "Dashboard", icon: LayoutGrid, end: true },
+  { to: "/spielplan", label: "Spielplan", icon: CalendarDays },
   { to: "/tabellen", label: "Tabellen", icon: ListOrdered },
   { to: "/ko", label: "K.-o.-Baum", icon: Trophy },
   { to: "/simulator", label: "KI-Simulator", icon: BrainCircuit },
@@ -102,6 +104,7 @@ export default function App() {
             <Suspense fallback={<PageFallback />}>
               <Routes location={location}>
                 <Route path="/" element={<Dashboard />} />
+                <Route path="/spielplan" element={<Schedule />} />
                 <Route path="/match/:id" element={<MatchCenter />} />
                 <Route path="/tabellen" element={<Standings />} />
                 <Route path="/ko" element={<Bracket />} />
