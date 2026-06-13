@@ -58,22 +58,29 @@ export function PitchLineups({ match, className }: { match: Match; className?: s
   const lineups = match.lineups;
 
   if (!lineups) {
+    const isOver = match.status === "finished";
     return (
       <Card className={cn("p-6 sm:p-8", className)}>
         <div className="text-center">
           <Clock3 className="mx-auto h-8 w-8 text-zinc-600" aria-hidden="true" />
           <p className="mt-3 font-display text-sm font-extrabold text-zinc-200">
-            Aufstellungen folgen ~60 Min. vor Anstoß
+            {isOver
+              ? "Keine Aufstellungen verfügbar"
+              : "Aufstellungen folgen ~60 Min. vor Anstoß"}
           </p>
           <p className="mt-1 text-sm text-zinc-500">
-            Sobald beide Teams offiziell gemeldet sind, erscheint hier das taktische Feld.
+            {isOver
+              ? "Für diese Partie wurden keine Aufstellungsdaten veröffentlicht."
+              : "Sobald beide Teams offiziell gemeldet sind, erscheint hier das taktische Feld."}
           </p>
         </div>
-        <div className="mx-auto mt-6 max-w-sm space-y-3" aria-hidden="true">
-          <Skeleton className="h-8 w-2/3" />
-          <Skeleton className="aspect-[10/9] w-full" />
-          <Skeleton className="h-8 w-1/2" />
-        </div>
+        {!isOver && (
+          <div className="mx-auto mt-6 max-w-sm space-y-3" aria-hidden="true">
+            <Skeleton className="h-8 w-2/3" />
+            <Skeleton className="aspect-[10/9] w-full" />
+            <Skeleton className="h-8 w-1/2" />
+          </div>
+        )}
       </Card>
     );
   }
@@ -102,7 +109,7 @@ export function PitchLineups({ match, className }: { match: Match; className?: s
         style={{
           background: "linear-gradient(180deg, #0c2417 0%, #123524 48%, #0c2417 100%)",
         }}
-        role="img"
+        role="group"
         aria-label={`Aufstellung ${home.name} (${lineups.home.formation}) gegen ${away.name} (${lineups.away.formation})`}
       >
         {/* Rasenstreifen */}
@@ -138,11 +145,11 @@ export function PitchLineups({ match, className }: { match: Match; className?: s
           {home.code}
         </span>
 
-        {lineups.away.players.map((p) => (
-          <PlayerDot key={`a-${p.number}`} player={p} side="away" />
+        {lineups.away.players.map((p, i) => (
+          <PlayerDot key={`a-${i}-${p.number}`} player={p} side="away" />
         ))}
-        {lineups.home.players.map((p) => (
-          <PlayerDot key={`h-${p.number}`} player={p} side="home" />
+        {lineups.home.players.map((p, i) => (
+          <PlayerDot key={`h-${i}-${p.number}`} player={p} side="home" />
         ))}
       </div>
 

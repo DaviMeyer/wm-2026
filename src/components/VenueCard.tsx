@@ -49,7 +49,7 @@ export function VenueCard({
           <p className="label-caps">Ortszeit</p>
           <p className="mt-0.5 flex items-center gap-1.5 font-mono text-sm text-zinc-200">
             <Clock className="h-3.5 w-3.5 text-zinc-500" aria-hidden="true" />
-            {local ? `${local} Uhr` : "–"}
+            {local ? `${local} Uhr` : "folgt"}
           </p>
         </div>
         <div className="min-w-0">

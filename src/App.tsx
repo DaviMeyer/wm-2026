@@ -1,4 +1,4 @@
-import { Suspense, lazy } from "react";
+import { Suspense, lazy, useEffect } from "react";
 import { NavLink, Route, Routes, useLocation } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { BrainCircuit, CalendarDays, LayoutGrid, ListOrdered, Trophy, Radio } from "lucide-react";
@@ -20,6 +20,15 @@ const NAV = [
   { to: "/ko", label: "K.-o.-Baum", icon: Trophy },
   { to: "/simulator", label: "KI-Simulator", icon: BrainCircuit },
 ];
+
+/** Browser-Tab-Titel pro Route – hilft bei Verlauf, Tabs und Vorlese-Tools. */
+const PAGE_TITLES: Record<string, string> = {
+  "/": "Dashboard · WM 2026",
+  "/spielplan": "Spielplan · WM 2026",
+  "/tabellen": "Gruppentabellen · WM 2026",
+  "/ko": "K.-o.-Baum · WM 2026",
+  "/simulator": "KI-Simulator · WM 2026",
+};
 
 function Navbar() {
   const { matches } = useWmData();
@@ -89,10 +98,25 @@ function PageFallback() {
 
 export default function App() {
   const location = useLocation();
+
+  // Browser-Titel an die aktuelle Route anpassen (Detailseiten setzen ihn selbst).
+  useEffect(() => {
+    const title = PAGE_TITLES[location.pathname];
+    if (title) document.title = title;
+    else if (!location.pathname.startsWith("/match/"))
+      document.title = "WM 2026 · Live-Daten & KI-Insights";
+  }, [location.pathname]);
+
   return (
     <div className="min-h-dvh">
+      <a
+        href="#main-content"
+        className="sr-only rounded-lg bg-volt-400 px-4 py-2 text-sm font-bold text-pitch-950 focus:not-sr-only focus:absolute focus:left-3 focus:top-3 focus:z-[100] focus:outline-none focus:ring-2 focus:ring-volt-400 focus:ring-offset-2 focus:ring-offset-pitch-950"
+      >
+        Zum Inhalt springen
+      </a>
       <Navbar />
-      <main className="mx-auto max-w-6xl px-3 pb-16 pt-24 sm:px-4 sm:pt-28">
+      <main id="main-content" className="mx-auto max-w-6xl px-3 pb-16 pt-24 sm:px-4 sm:pt-28">
         <AnimatePresence mode="wait">
           <motion.div
             key={location.pathname}

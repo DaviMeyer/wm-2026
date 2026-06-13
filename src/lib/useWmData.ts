@@ -45,15 +45,21 @@ const addDays = (d: Date, days: number) => {
 
 let groupOf: Record<string, string> = {};
 
+// Letzter Gruppenspieltag der WM 2026 (27. Juni); danach beginnt die K.-o.-Runde.
+const GROUP_STAGE_END = new Date("2026-06-27T23:59:59Z");
+
 /**
  * Gruppen-Fallback für Spiele ohne "Group X"-Note: nur setzen, wenn beide
  * Teams derselben Gruppe angehören. Sonst würden K.-o.-Spiele, sobald die
  * Paarung feststeht, fälschlich die Gruppe des Heimteams erben (und z. B.
- * im Spielplan-Filter als Gruppenphase auftauchen).
+ * im Spielplan-Filter als Gruppenphase auftauchen). Spiele nach dem letzten
+ * Gruppenspieltag erhalten nie eine Gruppe – auch wenn zwei Teams derselben
+ * Gruppe (z. B. im Finale) erneut aufeinandertreffen.
  */
 function applyGroupFallback(matches: Match[]): void {
   for (const m of matches) {
     if (m.group) continue;
+    if (new Date(m.kickoff) > GROUP_STAGE_END) continue;
     const g = groupOf[m.homeCode];
     if (g && groupOf[m.awayCode] === g) m.group = g;
   }
@@ -218,9 +224,19 @@ export function useMatch(id: string | undefined): { match: Match | undefined; lo
 const sameLocalDay = (iso: string, ref: Date) =>
   new Date(iso).toDateString() === ref.toDateString();
 
-/** Spiele eines Tages relativ zu heute (0 = heute, -1 = gestern). */
+// Bezugstag der Mock-Daten (12. Juni 2026, lokal). Im Demo-Modus laufen die
+// "Heute"/"Gestern"-Selektoren gegen diesen Tag, sonst wären sie außerhalb des
+// fixen Mock-Fensters (11.–13. Juni) immer leer.
+const MOCK_NOW = new Date(2026, 5, 12, 12, 0, 0);
+
+/** Bezugszeitpunkt: echter Takt im Live-Modus, fixer Mock-Tag im Demo-Modus. */
+export function effectiveNow(): Date {
+  return store.source === "mock" ? new Date(MOCK_NOW) : new Date();
+}
+
+/** Spiele eines Tages relativ zu „jetzt" (0 = heute, -1 = gestern). */
 export function matchesOn(matches: Match[], dayOffset: number): Match[] {
-  const ref = addDays(new Date(), dayOffset);
+  const ref = addDays(effectiveNow(), dayOffset);
   return matches.filter((m) => sameLocalDay(m.kickoff, ref));
 }
 

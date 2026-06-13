@@ -47,11 +47,11 @@ export function MatchStatsPanel({ match, className }: { match: Match; className?
   return (
     <Card className={cn("p-5 sm:p-6", className)}>
       <div className="mb-6 flex items-center justify-between gap-3">
-        <TeamCrest code={match.homeCode} size="sm" />
+        <TeamCrest code={match.homeCode} size="sm" decorative={false} />
         <p className="font-display text-sm font-extrabold tracking-tight text-zinc-100">
           Spielstatistik
         </p>
-        <TeamCrest code={match.awayCode} size="sm" />
+        <TeamCrest code={match.awayCode} size="sm" decorative={false} />
       </div>
       <div className="space-y-4 sm:space-y-5">
         {rows.map((row) => (

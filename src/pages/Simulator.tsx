@@ -196,6 +196,7 @@ export default function Simulator() {
             type="button"
             onClick={start}
             disabled={running || loading}
+            aria-busy={running}
             className="inline-flex min-h-12 cursor-pointer items-center justify-center gap-2 rounded-xl bg-volt-400 px-6 font-display text-sm font-extrabold uppercase tracking-wider text-pitch-950 transition-colors duration-200 hover:bg-volt-300 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-volt-400 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {running ? (

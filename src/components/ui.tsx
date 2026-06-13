@@ -52,15 +52,22 @@ export function LiveBadge({ minute }: { minute?: number }) {
  * Team-Roundel: Verlauf aus den Teamfarben + FIFA-Trigramm.
  * Bewusst statt Flaggen-Emojis (rendern auf Windows nicht) –
  * funktioniert offline und bleibt visuell konsistent.
+ *
+ * Standardmäßig dekorativ (aria-hidden), weil das Wappen fast immer direkt
+ * neben dem sichtbaren Teamnamen steht – sonst läse ein Screenreader den
+ * Namen doppelt vor. Steht das Wappen allein, mit `decorative={false}`
+ * den Teamnamen als Label ausgeben.
  */
 export function TeamCrest({
   code,
   size = "md",
   className,
+  decorative = true,
 }: {
   code: string;
   size?: "sm" | "md" | "lg" | "xl";
   className?: string;
+  decorative?: boolean;
 }) {
   const team = teamByCode(code);
   const dims = {
@@ -72,8 +79,9 @@ export function TeamCrest({
   const [c1, c2] = team.colors;
   return (
     <span
-      role="img"
-      aria-label={`Wappen ${team.name}`}
+      role={decorative ? undefined : "img"}
+      aria-hidden={decorative || undefined}
+      aria-label={decorative ? undefined : `Wappen ${team.name}`}
       className={cn(
         "inline-flex shrink-0 items-center justify-center rounded-full font-display font-extrabold tracking-wider ring-1 ring-white/15",
         dims,
@@ -101,12 +109,23 @@ function pickReadable(hex: string): string {
 export function FormDots({ form }: { form: ("S" | "U" | "N")[] }) {
   const color = { S: "bg-volt-400", U: "bg-zinc-500", N: "bg-signal-400" };
   const label = { S: "Sieg", U: "Unentschieden", N: "Niederlage" };
+  if (form.length === 0) {
+    return (
+      <span className="font-mono text-[10px] text-zinc-600" aria-label="Form nicht verfügbar">
+        –
+      </span>
+    );
+  }
   return (
-    <span className="inline-flex items-center gap-1" aria-label="Formkurve, letzte 5 Spiele">
+    <span
+      className="inline-flex items-center gap-1"
+      aria-label={`Formkurve, letzte ${form.length}: ${form.map((f) => label[f]).join(", ")}`}
+    >
       {form.map((f, i) => (
         <span
           key={i}
           title={label[f]}
+          aria-hidden="true"
           className={cn("h-1.5 w-1.5 rounded-full", color[f])}
         />
       ))}
@@ -128,7 +147,8 @@ export function StatBar({
   format?: (v: number) => string;
   highlightWinner?: boolean;
 }) {
-  const total = home + away || 1;
+  const actualTotal = home + away;
+  const total = actualTotal || 1;
   const homeWins = highlightWinner && home > away;
   const awayWins = highlightWinner && away > home;
   return (
@@ -142,15 +162,22 @@ export function StatBar({
           {format(away)}
         </span>
       </div>
-      <div className="flex h-1.5 gap-1 overflow-hidden rounded-full">
-        <div
-          className="rounded-full bg-volt-400/80 transition-all duration-500"
-          style={{ width: `${(home / total) * 100}%` }}
-        />
-        <div
-          className="rounded-full bg-azure-400/80 transition-all duration-500"
-          style={{ width: `${(away / total) * 100}%` }}
-        />
+      <div className="flex h-1.5 gap-1 overflow-hidden rounded-full bg-pitch-800">
+        {actualTotal === 0 ? (
+          // Beide Werte 0 (z. B. 0 Ecken früh im Spiel): neutraler Balken statt leerer Spur
+          <div className="w-full rounded-full bg-pitch-700" />
+        ) : (
+          <>
+            <div
+              className="rounded-full bg-volt-400/80 transition-all duration-500"
+              style={{ width: `${(home / total) * 100}%` }}
+            />
+            <div
+              className="rounded-full bg-azure-400/80 transition-all duration-500"
+              style={{ width: `${(away / total) * 100}%` }}
+            />
+          </>
+        )}
       </div>
     </div>
   );

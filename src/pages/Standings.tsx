@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import type { Variants } from "framer-motion";
+import { ChevronsLeftRight } from "lucide-react";
 import { GROUPS, teamByCode } from "../data/wm";
 import type { StandingRow } from "../data/wm";
 import { FormDots, Pill, Skeleton, TeamCrest } from "../components/ui";
@@ -235,6 +236,19 @@ export default function Standings() {
           );
         })}
       </motion.div>
+
+      {/* Hinweis auf horizontale Scrollbarkeit der Tabellen (nur schmale Screens) */}
+      {visibleGroups.length > 0 && (
+        <motion.p
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.3, delay: 0.12 }}
+          className="mb-3 flex items-center gap-1.5 text-xs text-zinc-600 sm:hidden"
+        >
+          <ChevronsLeftRight className="h-3.5 w-3.5" aria-hidden="true" />
+          Tabelle horizontal scrollen für alle Spalten
+        </motion.p>
+      )}
 
       {/* Gruppen-Grid mit gestaffelten Reveals */}
       <motion.div

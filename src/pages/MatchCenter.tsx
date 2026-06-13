@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { AnimatePresence, motion, type Variants } from "framer-motion";
 import { ArrowLeft, BrainCircuit, Info, SearchX, UserCheck } from "lucide-react";
@@ -250,6 +250,17 @@ export default function MatchCenter() {
   const [tab, setTab] = useState<TabId>("uebersicht");
   const { match, loading } = useMatch(id);
 
+  // Beim Wechsel auf ein anderes Spiel wieder mit der Übersicht starten.
+  useEffect(() => setTab("uebersicht"), [id]);
+
+  // Browser-Titel mit der aktuellen Paarung versehen.
+  useEffect(() => {
+    if (!match) return;
+    const home = teamByCode(match.homeCode).name;
+    const away = teamByCode(match.awayCode).name;
+    document.title = `${home} – ${away} · WM 2026`;
+  }, [match]);
+
   if (!match && loading) {
     return (
       <div className="space-y-5" aria-busy="true" aria-label="Spieldetails werden geladen">
@@ -279,8 +290,10 @@ export default function MatchCenter() {
           {TABS.map((t) => (
             <button
               key={t.id}
+              id={`tab-${t.id}`}
               role="tab"
               aria-selected={tab === t.id}
+              aria-controls={`panel-${t.id}`}
               onClick={() => setTab(t.id)}
               className={cn(
                 "relative min-h-11 shrink-0 cursor-pointer whitespace-nowrap rounded-t-lg px-3 text-sm font-medium transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-volt-400/60 sm:px-4",
@@ -305,6 +318,9 @@ export default function MatchCenter() {
         <AnimatePresence mode="wait">
           <motion.div
             key={tab}
+            id={`panel-${tab}`}
+            role="tabpanel"
+            aria-labelledby={`tab-${tab}`}
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -6 }}

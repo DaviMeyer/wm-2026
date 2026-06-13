@@ -63,8 +63,9 @@ export function simulateTournament(runs: number): SimResult {
     let q = 0;
     for (let g = 0; g < groups.length; g++) {
       const idx = groups[g];
-      for (let a = 0; a < 4; a++) {
-        for (let b = a + 1; b < 4; b++) {
+      const gsize = idx.length; // i. d. R. 4; robust gegen unvollständige Live-Daten
+      for (let a = 0; a < gsize; a++) {
+        for (let b = a + 1; b < gsize; b++) {
           const ia = idx[a];
           const ib = idx[b];
           if (Math.random() < DRAW_PROB) {
@@ -78,12 +79,12 @@ export function simulateTournament(runs: number): SimResult {
         }
       }
       // Tiebreak: kleiner Zufallsanteil (< 10) bricht Punktgleichheit
-      for (let a = 0; a < 4; a++) score[idx[a]] += Math.random() * 9;
+      for (let a = 0; a < gsize; a++) score[idx[a]] += Math.random() * 9;
 
-      // Top 2 per einfacher Selektion (nur 4 Teams, Sort unnötig)
+      // Top 2 per einfacher Selektion (kleine Gruppe, Sort unnötig)
       let first = idx[0];
       let second = -1;
-      for (let a = 1; a < 4; a++) {
+      for (let a = 1; a < gsize; a++) {
         const t = idx[a];
         if (score[t] > score[first]) {
           second = first;
@@ -93,7 +94,7 @@ export function simulateTournament(runs: number): SimResult {
         }
       }
       let third = -1;
-      for (let a = 0; a < 4; a++) {
+      for (let a = 0; a < gsize; a++) {
         const t = idx[a];
         if (t === first || t === second) continue;
         if (third === -1 || score[t] > score[third]) third = t;

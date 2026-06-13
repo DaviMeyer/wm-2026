@@ -5,16 +5,34 @@ import { teamByCode, venueById, NEWS, type Match, type NewsItem } from "../data/
 import { LiveBadge, Pill, SectionHeader, Skeleton, TeamCrest } from "../components/ui";
 import { AIPredictionCard } from "../components/ai/AIPredictionCard";
 import { FavoritesBar } from "../components/dashboard/FavoritesBar";
-import { liveOf, matchesOn, useWmData } from "../lib/useWmData";
+import { effectiveNow, liveOf, matchesOn, useWmData } from "../lib/useWmData";
 import { cn, kickoffUser, timeAgo } from "../lib/utils";
 
-/** "Fr., 12. Juni" relativ zu heute. */
-function dayLabel(offsetDays: number): string {
+/** "Fr., 12. Juni" relativ zum Bezugstag. */
+function dayLabel(base: Date, offsetDays: number): string {
   return new Intl.DateTimeFormat("de-DE", {
     weekday: "short",
     day: "numeric",
     month: "long",
-  }).format(new Date(Date.now() + offsetDays * 86_400_000));
+  }).format(new Date(base.getTime() + offsetDays * 86_400_000));
+}
+
+const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+
+/** "Heute · 21:00 Uhr", "Morgen · …", sonst "Sa., 13. Juni · …" – datumsgenau. */
+function relativeKickoff(match: Match): string {
+  const diffDays = Math.round((startOfDay(new Date(match.kickoff)) - startOfDay(effectiveNow())) / 86_400_000);
+  const prefix =
+    diffDays === 0
+      ? "Heute"
+      : diffDays === 1
+        ? "Morgen"
+        : diffDays === -1
+          ? "Gestern"
+          : new Intl.DateTimeFormat("de-DE", { weekday: "short", day: "numeric", month: "long" }).format(
+              new Date(match.kickoff)
+            );
+  return `${prefix} · ${kickoffUser(match)} Uhr`;
 }
 
 /* ---------------- Framer-Motion-Orchestrierung ---------------- */
@@ -60,7 +78,7 @@ function HeroLiveCard({ match }: { match: Match }) {
             <Pill tone="neutral">Endstand</Pill>
           ) : (
             <span className="font-mono text-sm font-semibold text-zinc-200">
-              Heute · {kickoffUser(match)} Uhr
+              {relativeKickoff(match)}
             </span>
           )}
           <span className="label-caps">{match.group ? `Gruppe ${match.group}` : "WM 2026"}</span>
@@ -121,6 +139,14 @@ function HeroLiveCard({ match }: { match: Match }) {
           </span>
         </div>
       </div>
+
+      {/* Score-Änderungen für Screenreader ankündigen, ohne zu unterbrechen */}
+      {match.status === "live" && (
+        <div role="status" aria-live="polite" aria-atomic="true" className="sr-only">
+          Live, {match.minute}. Minute. Spielstand: {home.name} {match.homeScore}, {away.name}{" "}
+          {match.awayScore}.
+        </div>
+      )}
     </Link>
   );
 }
@@ -259,14 +285,19 @@ function NewsCard({ item }: { item: NewsItem }) {
 
 export default function Dashboard() {
   const { matches, source, loading } = useWmData();
+  const now = effectiveNow();
   const live = liveOf(matches);
   const today = matchesOn(matches, 0);
-  const yesterday = matchesOn(matches, -1).filter((m) => m.status === "finished");
+  // Auch ein Spiel, das gestern anstieß und (z. B. durch Verlängerung) noch
+  // läuft, gehört in die Gestern-Liste – nicht nur abgeschlossene Partien.
+  const yesterday = matchesOn(matches, -1).filter((m) => m.status !== "upcoming");
   const featured =
     live[0] ??
     today.find((m) => m.status === "upcoming" && m.prediction) ??
     today[0] ??
     matches.find((m) => m.status === "upcoming");
+  // Das Hero-Spiel nicht zusätzlich als Karte im Heute-Grid doppeln.
+  const todayList = featured ? today.filter((m) => m.id !== featured.id) : today;
 
   if (loading) {
     return (
@@ -322,19 +353,21 @@ export default function Dashboard() {
           action={
             <span className="label-caps flex items-center gap-1.5">
               <CalendarDays className="h-3.5 w-3.5" aria-hidden="true" />
-              {dayLabel(0)}
+              {dayLabel(now, 0)}
             </span>
           }
         />
-        {today.length > 0 ? (
+        {todayList.length > 0 ? (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {today.map((m) => (
+            {todayList.map((m) => (
               <TodayMatchCard key={m.id} match={m} />
             ))}
           </div>
         ) : (
           <p className="card p-6 text-center text-sm text-zinc-500">
-            Heute stehen keine Partien an.
+            {today.length === 0
+              ? "Heute stehen keine Partien an."
+              : "Die heutige Partie siehst du oben im Fokus."}
           </p>
         )}
         <div className="mt-3 flex justify-end">
@@ -351,7 +384,7 @@ export default function Dashboard() {
       {/* Gestern */}
       {yesterday.length > 0 && (
         <motion.section variants={rise} aria-label="Ergebnisse von gestern">
-          <SectionHeader title="Gestern" hint={`Endstände vom ${dayLabel(-1)}`} />
+          <SectionHeader title="Gestern" hint={`Endstände vom ${dayLabel(now, -1)}`} />
           <div className="card divide-y divide-line p-1.5">
             {yesterday.map((m) => (
               <ResultRow key={m.id} match={m} />

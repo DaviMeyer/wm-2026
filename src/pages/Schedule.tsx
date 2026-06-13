@@ -5,7 +5,7 @@ import type { Variants } from "framer-motion";
 import { ChevronRight, Star } from "lucide-react";
 import { teamByCode, venueById, DEFAULT_FAVORITES, type Match } from "../data/wm";
 import { Pill, Skeleton, TeamCrest } from "../components/ui";
-import { useSchedule } from "../lib/useWmData";
+import { effectiveNow, useSchedule } from "../lib/useWmData";
 import { cn, kickoffUser } from "../lib/utils";
 
 /* ------------------------------------------------------------------ */
@@ -56,7 +56,7 @@ function dayLabel(iso: string): string {
   }).format(new Date(iso));
 }
 
-const isToday = (iso: string) => new Date(iso).toDateString() === new Date().toDateString();
+const isToday = (iso: string) => new Date(iso).toDateString() === effectiveNow().toDateString();
 
 function ScheduleRow({ match }: { match: Match }) {
   const home = teamByCode(match.homeCode);
@@ -235,7 +235,11 @@ export default function Schedule() {
       {/* Tagesblöcke */}
       {days.length === 0 ? (
         <p className="card p-6 text-center text-sm text-zinc-500">
-          Keine Spiele für diese Filter gefunden.
+          {onlyFavorites
+            ? "Keine Spiele deiner Favoriten für diesen Filter gefunden."
+            : phase === "ko"
+              ? "Die K.-o.-Paarungen stehen erst nach der Gruppenphase fest."
+              : "Keine Spiele für diese Filter gefunden."}
         </p>
       ) : (
         <motion.div variants={listVariants} initial="hidden" animate="show" className="space-y-6">

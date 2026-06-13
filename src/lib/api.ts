@@ -448,10 +448,13 @@ function buildLineup(rosterEntry: Json): Lineup | undefined {
     { y: 78, players: groups.F },
   ].filter((r) => r.players.length > 0);
 
+  // Fallback-Nummern (fehlendes Jersey) müssen über die gesamte Elf eindeutig
+  // bleiben – sonst kollidieren zwei „1" und React-Keys/Anzeige werden doppelt.
+  let fallbackNo = 0;
   const players: PlayerSlot[] = rows.flatMap((row) =>
     row.players.map((p, i) => ({
       name: String(p?.athlete?.shortName ?? p?.athlete?.displayName ?? "—"),
-      number: num(p?.jersey) || i + 1,
+      number: num(p?.jersey) || ++fallbackNo,
       x: ((i + 1) / (row.players.length + 1)) * 100,
       y: row.y,
     }))

@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { motion } from "framer-motion";
 import { ChevronDown, Plus, Star } from "lucide-react";
 import { DEFAULT_FAVORITES, TEAMS, teamByCode } from "../../data/wm";
@@ -38,9 +38,10 @@ export function FavoritesBar({
 }) {
   // Abonniert den Daten-Store: Nach dem Live-Sync verlieren nicht
   // qualifizierte Teams ihre Gruppe und fallen aus der Auswahl.
-  useWmData();
+  const data = useWmData();
   const [favorites, setFavorites] = useState<string[]>(loadFavorites);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     try {
@@ -49,6 +50,16 @@ export function FavoritesBar({
       /* Speichern optional */
     }
   }, [favorites]);
+
+  // Nach dem Live-Sync nicht qualifizierte Teams dauerhaft aus den Favoriten
+  // entfernen, damit sie nicht unsichtbar in localStorage hängen bleiben.
+  useEffect(() => {
+    if (data.loading) return;
+    setFavorites((prev) => {
+      const cleaned = prev.filter((code) => teamByCode(code).group);
+      return cleaned.length === prev.length ? prev : cleaned;
+    });
+  }, [data.loading]);
 
   const remove = (code: string) =>
     setFavorites((prev) => prev.filter((c) => c !== code));
@@ -61,11 +72,39 @@ export function FavoritesBar({
     (a, b) => a.name.localeCompare(b.name, "de")
   );
 
+  // Picker schließen, sobald keine Teams mehr zur Auswahl stehen.
+  useEffect(() => {
+    if (pickerOpen && available.length === 0) setPickerOpen(false);
+  }, [available.length, pickerOpen]);
+
+  // Picker per Klick außerhalb oder Escape schließen.
+  useEffect(() => {
+    if (!pickerOpen) return;
+    const onDown = (e: MouseEvent) => {
+      if (rootRef.current && !rootRef.current.contains(e.target as Node)) setPickerOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setPickerOpen(false);
+    };
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [pickerOpen]);
+
   return (
-    <div className={className}>
+    <div ref={rootRef} className={className}>
       <div className="flex items-center gap-3">
         <div className="flex min-w-0 flex-1 items-center gap-2 overflow-x-auto overscroll-x-contain pb-1">
           <span className="label-caps mr-1 shrink-0">Favoriten</span>
+
+        {visibleFavorites.length === 0 && (
+          <span className="shrink-0 text-xs italic text-zinc-500">
+            Noch keine ausgewählt
+          </span>
+        )}
 
         {visibleFavorites.map((code) => {
           const team = teamByCode(code);

@@ -43,6 +43,11 @@ export function AIPredictionCard({
           <h3 className="flex items-center gap-2 font-display text-sm font-extrabold uppercase tracking-wider text-zinc-100">
             <Sparkles className="h-4 w-4 text-volt-400" aria-hidden="true" />
             KI-Prognose
+            {match.status !== "upcoming" && (
+              <span className="font-sans text-[10px] font-medium normal-case tracking-normal text-zinc-500">
+                · vor Anstoß
+              </span>
+            )}
           </h3>
           <Pill tone={CONFIDENCE_TONE[prediction.confidence]}>
             Konfidenz: {prediction.confidence}

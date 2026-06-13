@@ -210,13 +210,18 @@ export default function Bracket() {
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.3, delay: 0.15 }}
-        className="mb-4 flex items-center gap-1.5 text-xs text-zinc-600 xl:hidden"
+        className="mb-4 flex items-center gap-1.5 text-xs text-zinc-600"
       >
         <ChevronsLeftRight className="h-3.5 w-3.5" aria-hidden="true" />
-        Horizontal scrollen, um alle Runden zu sehen
+        Horizontal scrollen oder mit den Pfeiltasten navigieren, um alle Runden zu sehen
       </motion.p>
 
-      <div className="overflow-x-auto overscroll-x-contain pb-4" role="region" aria-label="Turnierbaum">
+      <div
+        className="overflow-x-auto overscroll-x-contain rounded-2xl pb-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-volt-400"
+        role="region"
+        aria-label="Turnierbaum, horizontal scrollbar"
+        tabIndex={0}
+      >
         <div className="flex min-w-max items-stretch">
           {rounds.map((round, ri) => {
             const isFinalRound = ri === rounds.length - 1;
