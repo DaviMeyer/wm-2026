@@ -54,11 +54,14 @@ export function MomentumChart({
   homeName,
   awayName,
   className,
+  estimated = false,
 }: {
   momentum: MomentumPoint[];
   homeName: string;
   awayName: string;
   className?: string;
+  /** true = aus Toren & Ballbesitz geschätzt (kein echtes Live-Momentum). */
+  estimated?: boolean;
 }) {
   return (
     <div className={cn("min-w-0", className)}>
@@ -112,6 +115,12 @@ export function MomentumChart({
           </BarChart>
         </ResponsiveContainer>
       </div>
+
+      {estimated && (
+        <p className="mt-2 text-[11px] leading-snug text-zinc-600">
+          Geschätzt aus Toren &amp; Ballbesitz – die Datenquelle liefert kein Live-Momentum.
+        </p>
+      )}
     </div>
   );
 }

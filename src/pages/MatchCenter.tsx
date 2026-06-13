@@ -1,8 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { AnimatePresence, motion, type Variants } from "framer-motion";
-import { ArrowLeft, BrainCircuit, Info, SearchX, UserCheck } from "lucide-react";
-import type { Match } from "../data/wm";
+import { ArrowLeft, BrainCircuit, Goal, Info, SearchX, UserCheck } from "lucide-react";
+import type { GoalEvent, Match } from "../data/wm";
 import { teamByCode } from "../data/wm";
 import { useMatch } from "../lib/useWmData";
 import { Card, LiveBadge, Pill, Skeleton, StatBar, TeamCrest } from "../components/ui";
@@ -12,7 +12,7 @@ import { AITacticalSummary } from "../components/ai/AITacticalSummary";
 import { MomentumChart } from "../components/match/MomentumChart";
 import { PitchLineups } from "../components/match/PitchLineups";
 import { MatchStatsPanel } from "../components/match/MatchStatsPanel";
-import { cn, formatDate, kickoffUser } from "../lib/utils";
+import { cn, deriveMomentum, formatDate, kickoffUser } from "../lib/utils";
 
 /* ---------------------------------------------------------------- */
 /*  Match Center – Live-Detailseite im FotMob-Stil                   */
@@ -83,6 +83,43 @@ function TeamSide({ code, side }: { code: string; side: "home" | "away" }) {
   );
 }
 
+/** Torschützen unter dem Spielstand – Heim rechts zur Mitte, Auswärts links. */
+function ScorerList({ goals }: { goals: GoalEvent[] }) {
+  const home = goals.filter((g) => g.team === "home");
+  const away = goals.filter((g) => g.team === "away");
+
+  const tagOf = (g: GoalEvent) => (g.ownGoal ? " (ET)" : g.penalty ? " (Elfm.)" : "");
+
+  return (
+    <div className="mt-5 grid grid-cols-2 gap-x-4 border-t border-line pt-4 text-sm sm:gap-x-8">
+      <ul className="space-y-1.5">
+        {home.map((g, i) => (
+          <li key={`h-${i}`} className="flex items-center justify-end gap-1.5">
+            <span className="truncate text-zinc-300">
+              {g.scorer}
+              <span className="text-zinc-500">{tagOf(g)}</span>
+            </span>
+            <span className="shrink-0 font-mono text-xs text-zinc-500">{g.clockLabel}</span>
+            <Goal className="h-3.5 w-3.5 shrink-0 text-volt-400" aria-hidden="true" />
+          </li>
+        ))}
+      </ul>
+      <ul className="space-y-1.5">
+        {away.map((g, i) => (
+          <li key={`a-${i}`} className="flex items-center justify-start gap-1.5">
+            <Goal className="h-3.5 w-3.5 shrink-0 text-azure-400" aria-hidden="true" />
+            <span className="shrink-0 font-mono text-xs text-zinc-500">{g.clockLabel}</span>
+            <span className="truncate text-zinc-300">
+              {g.scorer}
+              <span className="text-zinc-500">{tagOf(g)}</span>
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 function MatchHeader({ match }: { match: Match }) {
   return (
     <Card className="p-5 sm:p-8">
@@ -126,6 +163,10 @@ function MatchHeader({ match }: { match: Match }) {
         <TeamSide code={match.awayCode} side="away" />
       </div>
 
+      {match.status !== "upcoming" && match.goals && match.goals.length > 0 && (
+        <ScorerList goals={match.goals} />
+      )}
+
       {match.referee && (
         <div className="mt-6 flex flex-wrap items-center justify-center gap-x-2 gap-y-1 border-t border-line pt-4">
           <UserCheck className="h-4 w-4 text-zinc-500" aria-hidden="true" />
@@ -140,6 +181,13 @@ function MatchHeader({ match }: { match: Match }) {
 function OverviewTab({ match }: { match: Match }) {
   const home = teamByCode(match.homeCode);
   const away = teamByCode(match.awayCode);
+
+  // Echte Momentum-Kurve, falls vorhanden (Mock-Drehbuch), sonst aus den
+  // echten Toren + Ballbesitz geschätzt – die ESPN-API liefert kein Momentum.
+  const momentum = useMemo(
+    () => match.momentum ?? deriveMomentum(match.goals ?? [], match),
+    [match]
+  );
 
   if (match.status === "upcoming") {
     return (
@@ -171,17 +219,12 @@ function OverviewTab({ match }: { match: Match }) {
   return (
     <div className="grid items-start gap-4 lg:grid-cols-5">
       <Card className="p-5 lg:col-span-3">
-        {match.momentum ? (
-          <MomentumChart
-            momentum={match.momentum}
-            homeName={home.name}
-            awayName={away.name}
-          />
-        ) : (
-          <p className="py-8 text-center text-sm text-zinc-500">
-            Für diese Partie liegen keine Momentum-Daten vor.
-          </p>
-        )}
+        <MomentumChart
+          momentum={momentum}
+          homeName={home.name}
+          awayName={away.name}
+          estimated={!match.momentum}
+        />
       </Card>
       <Card className="p-5 lg:col-span-2">
         <p className="mb-5 font-display text-sm font-extrabold tracking-tight text-zinc-100">

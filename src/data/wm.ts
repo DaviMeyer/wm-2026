@@ -53,6 +53,15 @@ export interface MomentumPoint {
   value: number; // -100 … 100, positiv = Heimteam dominiert
 }
 
+export interface GoalEvent {
+  minute: number; // Spielminute (für Sortierung)
+  clockLabel: string; // Anzeige inkl. Nachspielzeit, z. B. "45+2'"
+  team: "home" | "away"; // Seite, der das Tor gutgeschrieben wird
+  scorer: string; // Name des Torschützen
+  penalty?: boolean; // Elfmeter
+  ownGoal?: boolean; // Eigentor
+}
+
 export interface Prediction {
   home: number; // Siegwahrscheinlichkeit in %
   draw: number;
@@ -78,6 +87,7 @@ export interface Match {
   referee?: string;
   stats?: MatchStats;
   momentum?: MomentumPoint[];
+  goals?: GoalEvent[];
   lineups?: { home: Lineup; away: Lineup };
   prediction?: Prediction;
 }
@@ -322,6 +332,10 @@ export const MATCHES: Match[] = [
     awayScore: 0,
     venueId: "azteca",
     referee: "F. Letexier (FRA)",
+    goals: [
+      { minute: 23, clockLabel: "23'", team: "home", scorer: "S. Giménez" },
+      { minute: 67, clockLabel: "67'", team: "home", scorer: "R. Jiménez" },
+    ],
   },
   {
     id: "m-a2",
@@ -334,6 +348,10 @@ export const MATCHES: Match[] = [
     awayScore: 1,
     venueId: "akron",
     referee: "J. Maguette N'Diaye (SEN)",
+    goals: [
+      { minute: 41, clockLabel: "41'", team: "home", scorer: "R. Lewandowski", penalty: true },
+      { minute: 78, clockLabel: "78'", team: "away", scorer: "Son Heung-min" },
+    ],
   },
   {
     id: "m-b1",
@@ -346,6 +364,12 @@ export const MATCHES: Match[] = [
     awayScore: 1,
     venueId: "bcplace",
     referee: "C. Ramos (MEX)",
+    goals: [
+      { minute: 12, clockLabel: "12'", team: "home", scorer: "J. David" },
+      { minute: 55, clockLabel: "55'", team: "home", scorer: "J. David", penalty: true },
+      { minute: 70, clockLabel: "70'", team: "home", scorer: "A. Davies" },
+      { minute: 80, clockLabel: "80'", team: "away", scorer: "A. Hassan" },
+    ],
   },
 
   // Heute (12. Juni) – Featured Live-Match
@@ -361,6 +385,11 @@ export const MATCHES: Match[] = [
     awayScore: 1,
     venueId: "metlife",
     referee: "S. Marciniak (POL)",
+    goals: [
+      { minute: 18, clockLabel: "18'", team: "away", scorer: "Vinícius Jr." },
+      { minute: 34, clockLabel: "34'", team: "home", scorer: "J. Musiala" },
+      { minute: 61, clockLabel: "61'", team: "home", scorer: "N. Füllkrug" },
+    ],
     stats: {
       xg: [2.34, 1.87],
       possession: [44, 56],

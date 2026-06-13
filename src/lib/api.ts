@@ -9,6 +9,7 @@ import {
   registerVenue,
   teamByCode,
   VENUES,
+  type GoalEvent,
   type Lineup,
   type Match,
   type MatchStats,
@@ -278,6 +279,42 @@ function mapForm(form: unknown): ("S" | "U" | "N")[] | undefined {
   return result.length > 0 ? result : undefined;
 }
 
+/**
+ * Tore aus den Scoreboard-„details" ziehen (Minute, Torschütze, Seite,
+ * Elfmeter/Eigentor). ESPN markiert Tore mit scoringPlay bzw. type.text
+ * „Goal …"; Elfmeterschießen wird ausgeklammert (separater Modus).
+ */
+function mapGoals(comp: Json, homeId: string, awayId: string): GoalEvent[] {
+  const details: Json[] = comp?.details ?? [];
+  const goals: GoalEvent[] = [];
+  for (const d of details) {
+    const typeText = String(d?.type?.text ?? "");
+    const isGoal = d?.scoringPlay === true || /goal/i.test(typeText);
+    if (!isGoal) continue;
+    if (d?.shootout === true || /shootout/i.test(typeText)) continue;
+
+    const teamId = String(d?.team?.id ?? "");
+    const team: "home" | "away" | null =
+      teamId === homeId ? "home" : teamId === awayId ? "away" : null;
+    if (!team) continue;
+
+    const athlete = (d?.athletesInvolved ?? [])[0];
+    const scorer = String(athlete?.shortName ?? athlete?.displayName ?? "—");
+    const clockLabel = String(d?.clock?.displayValue ?? "").trim();
+    const minute = parseInt(clockLabel, 10);
+
+    goals.push({
+      minute: Number.isFinite(minute) ? minute : 0,
+      clockLabel: clockLabel || (Number.isFinite(minute) ? `${minute}'` : ""),
+      team,
+      penalty: d?.penaltyKick === true || /penalty/i.test(typeText),
+      ownGoal: d?.ownGoal === true || /own goal/i.test(typeText),
+      scorer,
+    });
+  }
+  return goals.sort((a, b) => a.minute - b.minute);
+}
+
 function mapEvent(ev: Json): Match | null {
   const comp = ev?.competitions?.[0];
   if (!comp) return null;
@@ -310,6 +347,11 @@ function mapEvent(ev: Json): Match | null {
     awayScore: status === "upcoming" ? undefined : num(away.score),
     venueId: ensureVenue(comp.venue),
   };
+
+  if (status !== "upcoming") {
+    const goals = mapGoals(comp, String(home.team?.id ?? ""), String(away.team?.id ?? ""));
+    if (goals.length > 0) match.goals = goals;
+  }
 
   // Für Platzhalter-Paarungen ("Sieger Gruppe A" etc.) keine Prognose —
   // das Ratings-Modell würde sonst Schein-Wahrscheinlichkeiten erfinden.
