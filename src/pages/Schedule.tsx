@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import type { Variants } from "framer-motion";
@@ -150,6 +150,30 @@ export default function Schedule() {
     return grouped;
   }, [schedule, phase, onlyFavorites, favorites]);
 
+  // Beim ersten Laden zum heutigen (sonst nächstgelegenen) Spieltag springen,
+  // statt am Turnierstart (11. Juni) zu beginnen. Vergangene Tage bleiben
+  // weiterhin nach oben scrollbar.
+  const targetKey = useMemo(() => {
+    if (days.length === 0) return null;
+    const todayBlock = days.find((d) => d.today);
+    if (todayBlock) return todayBlock.key;
+    const now = effectiveNow().getTime();
+    const upcoming = days.find((d) => new Date(d.matches[0].kickoff).getTime() >= now);
+    return (upcoming ?? days[days.length - 1]).key;
+  }, [days]);
+
+  const targetRef = useRef<HTMLElement | null>(null);
+  const hasScrolledRef = useRef(false);
+
+  useEffect(() => {
+    if (loading || hasScrolledRef.current || !targetRef.current) return;
+    hasScrolledRef.current = true;
+    const el = targetRef.current;
+    // Nach dem ersten Paint springen (Layout steht), ohne sichtbares Hochscrollen.
+    const raf = requestAnimationFrame(() => el.scrollIntoView({ block: "start" }));
+    return () => cancelAnimationFrame(raf);
+  }, [loading, days]);
+
   if (loading) {
     return (
       <div className="space-y-4" aria-busy="true" aria-label="Spielplan wird geladen">
@@ -244,7 +268,13 @@ export default function Schedule() {
       ) : (
         <motion.div variants={listVariants} initial="hidden" animate="show" className="space-y-6">
           {days.map((day) => (
-            <motion.section key={day.key} variants={dayVariants} aria-label={day.label}>
+            <motion.section
+              key={day.key}
+              ref={day.key === targetKey ? targetRef : undefined}
+              variants={dayVariants}
+              aria-label={day.label}
+              className="scroll-mt-24 sm:scroll-mt-28"
+            >
               <h2
                 className={cn(
                   "label-caps sticky top-19 z-10 -mx-2 mb-1 rounded-lg bg-pitch-950/95 px-2 py-2 backdrop-blur-sm sm:top-20",
