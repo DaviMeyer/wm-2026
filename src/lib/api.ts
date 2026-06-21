@@ -14,6 +14,7 @@ import {
   type Match,
   type MatchStats,
   type MatchStatus,
+  type NewsItem,
   type PlayerSlot,
   type Prediction,
   type StandingRow,
@@ -21,6 +22,7 @@ import {
 
 const SCOREBOARD = "https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.world";
 const STANDINGS_URL = "https://site.api.espn.com/apis/v2/sports/soccer/fifa.world/standings";
+const NEWS_URL = "https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.world/news";
 
 /** Deutsche Namen für Teams, die nicht im Basis-Datensatz stehen. */
 const GERMAN_NAMES: Record<string, string> = {
@@ -532,4 +534,82 @@ export async function fetchMatchDetails(eventId: string): Promise<MatchDetails> 
     lineups: homeLineup && awayLineup ? { home: homeLineup, away: awayLineup } : undefined,
     referee: ref?.displayName ?? ref?.fullName ?? undefined,
   };
+}
+
+/* --------------------------- News ---------------------------------- */
+
+/**
+ * Englische ESPN-Teamnamen → unsere Team-Codes. Nur damit kann eine News
+ * dem richtigen Wappen zugeordnet werden (ESPN liefert in den News keine
+ * Abkürzung, nur den englischen Namen). Unbekannte Namen → kein Wappen.
+ */
+const ESPN_TEAM_CODE: Record<string, string> = {
+  Mexico: "MEX", Poland: "POL", "South Korea": "KOR", "Korea Republic": "KOR",
+  "South Africa": "RSA", Canada: "CAN", Switzerland: "SUI", "Ivory Coast": "CIV",
+  "Côte d'Ivoire": "CIV", Qatar: "QAT", "United States": "USA", USA: "USA",
+  Uruguay: "URU", Japan: "JPN", "New Zealand": "NZL", France: "FRA", Senegal: "SEN",
+  Australia: "AUS", Panama: "PAN", Germany: "GER", Brazil: "BRA", Tunisia: "TUN",
+  Jordan: "JOR", Spain: "ESP", Morocco: "MAR", Serbia: "SRB", "Costa Rica": "CRC",
+  England: "ENG", Colombia: "COL", Norway: "NOR", Uzbekistan: "UZB",
+  Argentina: "ARG", Netherlands: "NED", Egypt: "EGY", Honduras: "HON",
+  Portugal: "POR", Croatia: "CRO", Ghana: "GHA", Curacao: "CUW", "Curaçao": "CUW",
+  Belgium: "BEL", Ecuador: "ECU", Mali: "MLI", "Saudi Arabia": "KSA", Italy: "ITA",
+  Denmark: "DEN", Algeria: "ALG", "Cape Verde": "CPV", "Cabo Verde": "CPV",
+  Nigeria: "NGA", Sweden: "SWE", Iran: "IRN", "IR Iran": "IRN", Peru: "PER",
+  // Weitere mögliche Qualifikanten (werden zur Laufzeit via Standings registriert)
+  Austria: "AUT", Ukraine: "UKR", Paraguay: "PAR", Scotland: "SCO", Wales: "WAL",
+  Turkey: "TUR", "Türkiye": "TUR", Romania: "ROU", Greece: "GRE", Cameroon: "CMR",
+  Jamaica: "JAM", Hungary: "HUN", Chile: "CHI", Venezuela: "VEN",
+  "Czechia": "CZE", "Czech Republic": "CZE", "Republic of Ireland": "IRL",
+  Ireland: "IRL", Iceland: "ISL", "North Macedonia": "MKD", Slovakia: "SVK",
+  Slovenia: "SVN", Albania: "ALB", "Bosnia and Herzegovina": "BIH",
+  Iraq: "IRQ", "United Arab Emirates": "UAE", Oman: "OMA",
+};
+
+/** Grobe deutsche Rubrik aus Schlagzeile/Text ableiten (ESPN liefert keine). */
+function categorizeNews(text: string): NewsItem["category"] {
+  const s = text.toLowerCase();
+  if (/injur|fitness|doubt|strain|knock|hamstring|sidelined|ruled out|miss(?:es|ed)? training|recover|surgery/.test(s))
+    return "Verletzung";
+  if (/transfer|signing|signed|\bsign\b|deal|linked|\bmove\b|\bbid\b|\bloan\b|contract/.test(s))
+    return "Transfer-Buzz";
+  if (/tactic|formation|line-?up|starting xi|\bsystem\b|coach|manager|\bbench\b|rotat|set-?piece/.test(s))
+    return "Taktik";
+  return "Turnier";
+}
+
+/** Echte WM-News von ESPN (kostenlos, ohne Key) auf unser Modell mappen. */
+export async function fetchNews(limit = 9): Promise<NewsItem[]> {
+  const data: Json = await getJson(`${NEWS_URL}?limit=${limit}`);
+  const articles: Json[] = data?.articles ?? [];
+  const items: NewsItem[] = [];
+
+  for (const a of articles) {
+    const headline = String(a?.headline ?? "").trim();
+    const published = String(a?.published ?? "");
+    if (!headline || !published) continue;
+    const summary = String(a?.description ?? "").trim();
+    const url = a?.links?.web?.href ? String(a.links.web.href) : undefined;
+
+    // Wappen nur, wenn die News genau EIN Team betrifft. ESPN listet die Teams
+    // alphabetisch – bei Spielberichten (2+ Teams) wäre die Auswahl willkürlich.
+    const teamCodes: string[] = [];
+    for (const c of (a?.categories ?? []) as Json[]) {
+      if (c?.type !== "team") continue;
+      const code = ESPN_TEAM_CODE[String(c?.team?.description ?? c?.description ?? "")];
+      if (code && !teamCodes.includes(code)) teamCodes.push(code);
+    }
+
+    items.push({
+      id: String(a?.id ?? url ?? headline),
+      category: categorizeNews(`${headline} ${summary}`),
+      headline,
+      summary,
+      timestamp: published,
+      teamCode: teamCodes.length === 1 ? teamCodes[0] : undefined,
+      url,
+    });
+  }
+
+  return items;
 }

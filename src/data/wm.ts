@@ -99,6 +99,8 @@ export interface NewsItem {
   summary: string;
   timestamp: string;
   teamCode?: string;
+  /** Link zum vollständigen Artikel (echte News von ESPN). */
+  url?: string;
 }
 
 /* ------------------------------- Teams ---------------------------- */
@@ -569,64 +571,6 @@ export const STANDINGS: Record<string, StandingRow[]> = Object.fromEntries(
     return [g, rows];
   })
 );
-
-/* ------------------------------- News ------------------------------ */
-
-export const NEWS: NewsItem[] = [
-  {
-    id: "n1",
-    category: "Verletzung",
-    headline: "Pedri fraglich für Spaniens Auftaktspiel",
-    summary:
-      "Der Mittelfeldspieler setzte mit muskulären Problemen im Abschlusstraining aus. Ein Einsatz gegen Costa Rica entscheidet sich kurzfristig.",
-    timestamp: "2026-06-12T09:15:00Z",
-    teamCode: "ESP",
-  },
-  {
-    id: "n2",
-    category: "Turnier",
-    headline: "Rekordkulisse beim Eröffnungsspiel im Azteca",
-    summary:
-      "87.523 Zuschauer sahen Mexikos 2:0 gegen Südafrika – die höchste Zuschauerzahl eines WM-Eröffnungsspiels seit 1986.",
-    timestamp: "2026-06-12T07:40:00Z",
-    teamCode: "MEX",
-  },
-  {
-    id: "n3",
-    category: "Taktik",
-    headline: "Deutschland überrascht mit Doppelsechs gegen Brasilien",
-    summary:
-      "Bundestrainer Nagelsmann stellt auf 4-2-3-1 um: Andrich und Groß sichern, Musiala bekommt die freie Rolle hinter Füllkrug.",
-    timestamp: "2026-06-12T13:05:00Z",
-    teamCode: "GER",
-  },
-  {
-    id: "n4",
-    category: "Verletzung",
-    headline: "Kanada bangt um Alphonso Davies",
-    summary:
-      "Der Flügelspieler verließ das Training am Donnerstag vorzeitig. Erste Untersuchungen deuten auf eine leichte Oberschenkelzerrung hin.",
-    timestamp: "2026-06-12T11:30:00Z",
-    teamCode: "CAN",
-  },
-  {
-    id: "n5",
-    category: "Turnier",
-    headline: "Hitzeprotokoll für Spiele in Dallas und Houston aktiviert",
-    summary:
-      "Bei erwarteten 38 °C gelten verlängerte Trinkpausen in beiden Halbzeiten. Anstoßzeiten bleiben unverändert.",
-    timestamp: "2026-06-12T08:00:00Z",
-  },
-  {
-    id: "n6",
-    category: "Transfer-Buzz",
-    headline: "Endricks WM-Auftritt heizt Gerüchteküche an",
-    summary:
-      "Nach dem Führungstreffer gegen Deutschland überschlagen sich Medienberichte über ein Premier-League-Interesse am 19-Jährigen.",
-    timestamp: "2026-06-12T19:20:00Z",
-    teamCode: "BRA",
-  },
-];
 
 /* --------------------------- Favoriten (Mock) ----------------------- */
 

@@ -7,8 +7,8 @@
 /* ------------------------------------------------------------------ */
 
 import { useEffect, useSyncExternalStore } from "react";
-import { applyGroups, MATCHES, STANDINGS, type Match, type StandingRow } from "../data/wm";
-import { fetchMatchDetails, fetchMatches, fetchStandings } from "./api";
+import { applyGroups, MATCHES, STANDINGS, type Match, type NewsItem, type StandingRow } from "../data/wm";
+import { fetchMatchDetails, fetchMatches, fetchNews, fetchStandings } from "./api";
 
 export type DataSource = "live" | "mock";
 
@@ -19,6 +19,8 @@ export interface WmData {
   standings: Record<string, StandingRow[]>;
   /** Kompletter Turnier-Spielplan (lazy geladen, null = noch nicht da). */
   schedule: Match[] | null;
+  /** Echte WM-News von ESPN; leer, solange (oder falls) keine verfügbar sind. */
+  news: NewsItem[];
 }
 
 let store: WmData = {
@@ -27,6 +29,7 @@ let store: WmData = {
   matches: MATCHES,
   standings: STANDINGS,
   schedule: null,
+  news: [],
 };
 
 const listeners = new Set<() => void>();
@@ -101,11 +104,25 @@ async function refreshScores(): Promise<void> {
   }
 }
 
+/**
+ * Echte News von ESPN laden – unabhängig vom Kern-Datenload. Schlägt der
+ * Abruf fehl, bleibt die Liste leer: lieber keine News als veraltete.
+ */
+async function loadNews(): Promise<void> {
+  try {
+    const news = await fetchNews();
+    setStore({ news });
+  } catch (err) {
+    console.warn("[WM26] News konnten nicht geladen werden.", err);
+  }
+}
+
 let started = false;
 function start(): void {
   if (started) return;
   started = true;
   void loadAll();
+  void loadNews();
   setInterval(() => {
     if (store.matches.some((m) => m.status === "live")) void refreshScores();
   }, 60_000);

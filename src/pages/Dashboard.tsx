@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
 import { motion, type Variants } from "framer-motion";
-import { CalendarDays, ChevronRight, MapPin, Newspaper } from "lucide-react";
-import { teamByCode, venueById, NEWS, type Match, type NewsItem } from "../data/wm";
+import { CalendarDays, ChevronRight, ExternalLink, MapPin, Newspaper } from "lucide-react";
+import { teamByCode, venueById, type Match, type NewsItem } from "../data/wm";
 import { LiveBadge, Pill, SectionHeader, Skeleton, TeamCrest } from "../components/ui";
 import { AIPredictionCard } from "../components/ai/AIPredictionCard";
 import { FavoritesBar } from "../components/dashboard/FavoritesBar";
@@ -257,34 +257,64 @@ const NEWS_TONE: Record<NewsItem["category"], "volt" | "azure" | "signal" | "gol
 };
 
 function NewsCard({ item }: { item: NewsItem }) {
-  return (
-    <article className="card flex flex-col gap-2.5 p-4 transition-colors duration-200 hover:border-zinc-600">
+  const content = (
+    <>
       <div className="flex items-center justify-between gap-2">
         <Pill tone={NEWS_TONE[item.category]}>{item.category}</Pill>
         <span className="font-mono text-[11px] text-zinc-500">
-          {timeAgo(item.timestamp)}
+          {timeAgo(item.timestamp, new Date())}
         </span>
       </div>
       <h3 className="font-display text-sm font-extrabold leading-snug text-zinc-100">
         {item.headline}
       </h3>
-      <p className="text-sm leading-relaxed text-zinc-400">{item.summary}</p>
-      {item.teamCode && (
-        <div className="mt-auto flex items-center gap-2 pt-1">
-          <TeamCrest code={item.teamCode} size="sm" />
-          <span className="text-xs font-medium text-zinc-500">
-            {teamByCode(item.teamCode).name}
+      {item.summary && <p className="text-sm leading-relaxed text-zinc-400">{item.summary}</p>}
+      <div className="mt-auto flex items-center justify-between gap-2 pt-1">
+        {item.teamCode ? (
+          <span className="flex min-w-0 items-center gap-2">
+            <TeamCrest code={item.teamCode} size="sm" />
+            <span className="truncate text-xs font-medium text-zinc-500">
+              {teamByCode(item.teamCode).name}
+            </span>
           </span>
-        </div>
+        ) : (
+          <span />
+        )}
+        {item.url && (
+          <span className="flex shrink-0 items-center gap-1 text-xs font-semibold text-volt-400 transition-colors duration-200 group-hover:text-volt-300">
+            ESPN
+            <ExternalLink className="h-3 w-3" aria-hidden="true" />
+          </span>
+        )}
+      </div>
+    </>
+  );
+
+  const className =
+    "card flex flex-col gap-2.5 p-4 transition-colors duration-200 hover:border-zinc-600";
+
+  return item.url ? (
+    <a
+      href={item.url}
+      target="_blank"
+      rel="noreferrer"
+      aria-label={`${item.headline} – Artikel bei ESPN öffnen`}
+      className={cn(
+        className,
+        "group cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-volt-400"
       )}
-    </article>
+    >
+      {content}
+    </a>
+  ) : (
+    <article className={className}>{content}</article>
   );
 }
 
 /* ----------------------------- Seite ------------------------------ */
 
 export default function Dashboard() {
-  const { matches, source, loading } = useWmData();
+  const { matches, source, loading, news } = useWmData();
   const now = effectiveNow();
   const live = liveOf(matches);
   const today = matchesOn(matches, 0);
@@ -393,24 +423,26 @@ export default function Dashboard() {
         </motion.section>
       )}
 
-      {/* News */}
-      <motion.section variants={rise} aria-label="Aktuelle Meldungen">
-        <SectionHeader
-          title="News & Buzz"
-          hint="Verletzungen, Taktik und Turniergeschehen · redaktionelle Demo-Inhalte"
-          action={
-            <span className="label-caps flex items-center gap-1.5">
-              <Newspaper className="h-3.5 w-3.5" aria-hidden="true" />
-              {NEWS.length} Meldungen
-            </span>
-          }
-        />
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {NEWS.map((item) => (
-            <NewsCard key={item.id} item={item} />
-          ))}
-        </div>
-      </motion.section>
+      {/* News – nur echte ESPN-Schlagzeilen; ohne verfügbare News ausgeblendet */}
+      {news.length > 0 && (
+        <motion.section variants={rise} aria-label="Aktuelle Meldungen">
+          <SectionHeader
+            title="News & Buzz"
+            hint="Aktuelle Schlagzeilen rund um die WM · Quelle: ESPN"
+            action={
+              <span className="label-caps flex items-center gap-1.5">
+                <Newspaper className="h-3.5 w-3.5" aria-hidden="true" />
+                {news.length} Meldungen
+              </span>
+            }
+          />
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {news.map((item) => (
+              <NewsCard key={item.id} item={item} />
+            ))}
+          </div>
+        </motion.section>
+      )}
     </motion.div>
   );
 }
