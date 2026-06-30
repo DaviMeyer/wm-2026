@@ -62,7 +62,7 @@ export function formatDate(iso: string): string {
 }
 
 /** Relative Zeit für News, z. B. "vor 2 Std.". */
-export function timeAgo(iso: string, now = new Date("2026-06-12T20:00:00Z")): string {
+export function timeAgo(iso: string, now = new Date()): string {
   const diffMin = Math.max(1, Math.round((now.getTime() - new Date(iso).getTime()) / 60000));
   if (diffMin < 60) return `vor ${diffMin} Min.`;
   const h = Math.round(diffMin / 60);

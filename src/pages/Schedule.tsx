@@ -4,8 +4,8 @@ import { motion } from "framer-motion";
 import type { Variants } from "framer-motion";
 import { ChevronRight, Star } from "lucide-react";
 import { teamByCode, venueById, DEFAULT_FAVORITES, type Match } from "../data/wm";
-import { Pill, Skeleton, TeamCrest } from "../components/ui";
-import { effectiveNow, useSchedule } from "../lib/useWmData";
+import { ErrorState, Pill, Skeleton, TeamCrest } from "../components/ui";
+import { effectiveNow, retry, useSchedule } from "../lib/useWmData";
 import { cn, kickoffUser } from "../lib/utils";
 
 /* ------------------------------------------------------------------ */
@@ -68,7 +68,7 @@ function ScheduleRow({ match }: { match: Match }) {
     <Link
       to={`/match/${match.id}`}
       aria-label={`${home.name} gegen ${away.name}, Details öffnen`}
-      className="flex min-h-12 cursor-pointer items-center gap-2 rounded-xl px-2 py-2 transition-colors duration-200 hover:bg-white/[0.04] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-volt-400 sm:gap-3 sm:px-3"
+      className="flex min-h-12 cursor-pointer items-center gap-2 rounded-xl px-2 py-2 transition-colors duration-200 hover:bg-zinc-500/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-volt-400 sm:gap-3 sm:px-3"
     >
       {/* Status/Zeit */}
       <span className="w-14 shrink-0 sm:w-16">
@@ -185,6 +185,10 @@ export default function Schedule() {
     );
   }
 
+  if (source === "error") {
+    return <ErrorState onRetry={retry} />;
+  }
+
   return (
     <div>
       <motion.header
@@ -201,9 +205,7 @@ export default function Schedule() {
             Alle Partien vom 11. Juni bis zum Finale am 19. Juli – Zeiten in deiner Zeitzone
           </p>
         </div>
-        <Pill tone={source === "live" ? "volt" : "neutral"}>
-          {source === "live" ? "Live-Daten · ESPN" : "Demo-Daten"}
-        </Pill>
+        <Pill tone="volt">Live-Daten · ESPN</Pill>
       </motion.header>
 
       {/* Filter */}

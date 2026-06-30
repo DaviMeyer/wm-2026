@@ -9,12 +9,6 @@ import { cn } from "../../lib/utils";
 /*  vertikalen Rasen – Heimteam unten, Gastteam oben (gespiegelt).   */
 /* ---------------------------------------------------------------- */
 
-function ratingTone(rating: number): string {
-  if (rating >= 8) return "bg-volt-400 text-pitch-950";
-  if (rating >= 7) return "bg-zinc-600 text-zinc-100";
-  return "bg-pitch-800 text-zinc-400 ring-1 ring-white/10";
-}
-
 function PlayerDot({ player, side }: { player: PlayerSlot; side: "home" | "away" }) {
   // Heim spielt von unten nach oben, Gast gespiegelt von oben nach unten.
   const top = side === "home" ? 95.5 - player.y * 0.45 : 3.5 + player.y * 0.45;
@@ -31,16 +25,6 @@ function PlayerDot({ player, side }: { player: PlayerSlot; side: "home" | "away"
         )}
       >
         {player.number}
-        {player.rating !== undefined && (
-          <span
-            className={cn(
-              "absolute -right-2.5 -top-1.5 rounded-md px-1 py-px font-mono text-[9px] font-bold leading-tight",
-              ratingTone(player.rating)
-            )}
-          >
-            {player.rating.toFixed(1).replace(".", ",")}
-          </span>
-        )}
       </span>
       <span
         className="mt-1 max-w-full truncate text-[10px] font-medium text-white/90"
@@ -154,9 +138,7 @@ export function PitchLineups({ match, className }: { match: Match; className?: s
       </div>
 
       <p className="mt-4 text-center text-xs text-zinc-500">
-        Punkt = Trikotnummer · Badge = Live-Rating (
-        <span className="text-volt-400">≥ 8,0</span> stark,{" "}
-        <span className="text-zinc-300">≥ 7,0</span> solide)
+        Zahl = Trikotnummer · offizielle Startaufstellung
       </p>
     </Card>
   );

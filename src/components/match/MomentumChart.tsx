@@ -9,15 +9,13 @@ import {
   YAxis,
 } from "recharts";
 import type { MomentumPoint } from "../../data/wm";
+import { useTheme } from "../../lib/theme";
 import { cn } from "../../lib/utils";
 
 /* ---------------------------------------------------------------- */
 /*  Attack Momentum – Spielverlauf als Balkendiagramm                */
 /*  Wert > 0 = Heimteam dominiert (Volt), < 0 = Gastteam (Azure)     */
 /* ---------------------------------------------------------------- */
-
-const VOLT = "#cdf542";
-const AZURE = "#38bdf8";
 
 function MomentumTooltip({
   active,
@@ -63,6 +61,18 @@ export function MomentumChart({
   /** true = aus Toren & Ballbesitz geschätzt (kein echtes Live-Momentum). */
   estimated?: boolean;
 }) {
+  // Recharts braucht feste Farb-Props. useTheme triggert ein Re-Render bei
+  // Modus-/Akzentwechsel; die Balkenfarben holen wir aus den CSS-Variablen
+  // (folgen damit dem Akzent), Achsen/Text aus dem aufgelösten Modus.
+  const { resolvedMode } = useTheme();
+  const css = getComputedStyle(document.documentElement);
+  const volt = css.getPropertyValue("--color-volt-400").trim() || "#cdf542";
+  const azure = css.getPropertyValue("--color-azure-400").trim() || "#38bdf8";
+  const axisColor = css.getPropertyValue("--color-pitch-700").trim() || "#27272e";
+  const tickColor = resolvedMode === "dark" ? "#71717a" : "#52525b";
+  const zeroColor = resolvedMode === "dark" ? "#52525b" : "#b4b8c0";
+  const cursorFill = resolvedMode === "dark" ? "rgb(255 255 255 / 0.06)" : "rgb(9 9 11 / 0.05)";
+
   return (
     <div className={cn("min-w-0", className)}>
       <div className="mb-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
@@ -94,20 +104,20 @@ export function MomentumChart({
               interval={0}
               tickFormatter={(m: number) => `${m}'`}
               tickLine={false}
-              axisLine={{ stroke: "#27272e" }}
-              tick={{ fill: "#71717a", fontSize: 10, fontFamily: "'JetBrains Mono', monospace" }}
+              axisLine={{ stroke: axisColor }}
+              tick={{ fill: tickColor, fontSize: 10, fontFamily: "'JetBrains Mono', monospace" }}
             />
             <YAxis hide domain={[-100, 100]} />
-            <ReferenceLine y={0} stroke="#3f3f46" strokeWidth={1} />
+            <ReferenceLine y={0} stroke={zeroColor} strokeWidth={1} />
             <Tooltip
-              cursor={{ fill: "rgba(255, 255, 255, 0.05)" }}
+              cursor={{ fill: cursorFill }}
               content={<MomentumTooltip homeName={homeName} awayName={awayName} />}
             />
             <Bar dataKey="value" maxBarSize={6} radius={[2, 2, 2, 2]}>
               {momentum.map((p) => (
                 <Cell
                   key={p.minute}
-                  fill={p.value >= 0 ? VOLT : AZURE}
+                  fill={p.value >= 0 ? volt : azure}
                   fillOpacity={0.85}
                 />
               ))}

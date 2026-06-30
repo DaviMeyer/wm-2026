@@ -7,7 +7,6 @@ import { cn } from "../../lib/utils";
 /*  Vollständige Spielstatistik als StatBar-Liste                    */
 /* ---------------------------------------------------------------- */
 
-const fmtXg = (v: number) => v.toFixed(2).replace(".", ",");
 const fmtPct = (v: number) => `${v} %`;
 
 export function MatchStatsPanel({ match, className }: { match: Match; className?: string }) {
@@ -30,7 +29,6 @@ export function MatchStatsPanel({ match, className }: { match: Match; className?
   // Nur verfügbare Werte anzeigen – die Live-API liefert z. B. kein xG.
   const rows = (
     [
-      { label: "Expected Goals (xG)", values: stats.xg, format: fmtXg },
       { label: "Ballbesitz", values: stats.possession, format: fmtPct },
       { label: "Schüsse", values: stats.shots },
       { label: "Schüsse aufs Tor", values: stats.shotsOnTarget },

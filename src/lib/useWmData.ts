@@ -1,16 +1,31 @@
 /* ------------------------------------------------------------------ */
-/*  Zentraler Daten-Store: lädt echte WM-Daten von der ESPN-API und    */
-/*  fällt bei Fehlern transparent auf die Mock-Daten zurück.           */
-/*  - Ein Fetch pro Session (Singleton), 60-s-Polling bei Live-Spielen */
-/*  - useWmData(): Spiele + Tabellen + Quelle                          */
-/*  - useMatch(id): Einzelspiel inkl. Detail-Anreicherung (Summary)    */
+/*  Zentraler Daten-Store: lädt ausschließlich echte WM-Daten von der   */
+/*  ESPN-API. Kein Mock-/Demo-Fallback – schlägt der Abruf fehl, wird    */
+/*  ein ehrlicher Fehlerzustand gezeigt (source: "error"), keine         */
+/*  erfundenen Inhalte.                                                  */
+/*  - Ein Fetch pro Session (Singleton), 60-s-Polling bei Live-Spielen  */
+/*  - useWmData(): Spiele + Tabellen + Quelle                           */
+/*  - useMatch(id): Einzelspiel inkl. Detail-Anreicherung               */
 /* ------------------------------------------------------------------ */
 
-import { useEffect, useSyncExternalStore } from "react";
-import { applyGroups, MATCHES, STANDINGS, type Match, type NewsItem, type StandingRow } from "../data/wm";
-import { fetchMatchDetails, fetchMatches, fetchNews, fetchStandings } from "./api";
+import { useEffect, useState, useSyncExternalStore } from "react";
+import {
+  applyGroups,
+  type Match,
+  type MatchEvent,
+  type MatchStatus,
+  type NewsItem,
+  type StandingRow,
+} from "../data/wm";
+import {
+  fetchMatchDetails,
+  fetchMatchEvents,
+  fetchMatches,
+  fetchNews,
+  fetchStandings,
+} from "./api";
 
-export type DataSource = "live" | "mock";
+export type DataSource = "live" | "error";
 
 export interface WmData {
   loading: boolean;
@@ -25,9 +40,9 @@ export interface WmData {
 
 let store: WmData = {
   loading: true,
-  source: "mock",
-  matches: MATCHES,
-  standings: STANDINGS,
+  source: "live",
+  matches: [],
+  standings: {},
   schedule: null,
   news: [],
 };
@@ -47,17 +62,15 @@ const addDays = (d: Date, days: number) => {
 };
 
 let groupOf: Record<string, string> = {};
+let scheduleRequested = false;
 
 // Letzter Gruppenspieltag der WM 2026 (27. Juni); danach beginnt die K.-o.-Runde.
 const GROUP_STAGE_END = new Date("2026-06-27T23:59:59Z");
 
 /**
  * Gruppen-Fallback für Spiele ohne "Group X"-Note: nur setzen, wenn beide
- * Teams derselben Gruppe angehören. Sonst würden K.-o.-Spiele, sobald die
- * Paarung feststeht, fälschlich die Gruppe des Heimteams erben (und z. B.
- * im Spielplan-Filter als Gruppenphase auftauchen). Spiele nach dem letzten
- * Gruppenspieltag erhalten nie eine Gruppe – auch wenn zwei Teams derselben
- * Gruppe (z. B. im Finale) erneut aufeinandertreffen.
+ * Teams derselben Gruppe angehören und das Spiel in der Gruppenphase liegt.
+ * Sonst würden K.-o.-Spiele fälschlich eine Gruppe erben.
  */
 function applyGroupFallback(matches: Match[]): void {
   for (const m of matches) {
@@ -79,8 +92,8 @@ async function loadAll(): Promise<void> {
     applyGroupFallback(matches);
     setStore({ loading: false, source: "live", matches, standings: standings.table });
   } catch (err) {
-    console.warn("[WM26] ESPN-API nicht erreichbar – Demo-Daten aktiv.", err);
-    setStore({ loading: false, source: "mock" });
+    console.warn("[WM26] ESPN-API nicht erreichbar.", err);
+    setStore({ loading: false, source: "error", matches: [], standings: {} });
   }
 }
 
@@ -95,7 +108,7 @@ async function refreshScores(): Promise<void> {
     const merged = fresh.map((m) => {
       const old = prev.get(m.id);
       return old
-        ? { ...m, stats: old.stats ?? m.stats, lineups: old.lineups ?? m.lineups, momentum: old.momentum, referee: old.referee ?? m.referee }
+        ? { ...m, stats: old.stats ?? m.stats, lineups: old.lineups ?? m.lineups, referee: old.referee ?? m.referee }
         : m;
     });
     setStore({ matches: merged });
@@ -128,6 +141,14 @@ function start(): void {
   }, 60_000);
 }
 
+/** Erneuter Ladeversuch nach einem API-Fehler. */
+export function retry(): void {
+  setStore({ loading: true, source: "live", schedule: null });
+  scheduleRequested = false;
+  void loadAll();
+  void loadNews();
+}
+
 const subscribe = (cb: () => void) => {
   listeners.add(cb);
   return () => listeners.delete(cb);
@@ -146,8 +167,6 @@ export function useWmData(): WmData {
 const TOURNAMENT_START = new Date(2026, 5, 11);
 const TOURNAMENT_END = new Date(2026, 6, 19);
 
-let scheduleRequested = false;
-
 async function loadSchedule(): Promise<void> {
   if (scheduleRequested) return;
   scheduleRequested = true;
@@ -157,8 +176,8 @@ async function loadSchedule(): Promise<void> {
     setStore({ schedule: matches });
   } catch (err) {
     console.warn("[WM26] Spielplan konnte nicht geladen werden.", err);
-    // Fallback: wenigstens das 3-Tage-Fenster des Kern-Stores zeigen
-    setStore({ schedule: [...store.matches] });
+    scheduleRequested = false;
+    setStore({ schedule: [], source: "error" });
   }
 }
 
@@ -172,14 +191,13 @@ export function useSchedule(): { schedule: Match[]; loading: boolean; source: Da
     }
   }, [data.loading, data.source, data.schedule]);
 
-  const base =
-    data.schedule ?? (data.source === "mock" && !data.loading ? data.matches : null);
-  if (base === null) {
-    return { schedule: [], loading: true, source: data.source };
+  if (data.schedule === null) {
+    // Noch am Laden (live) bzw. Fehlerfall (error -> leer, kein weiteres Laden)
+    return { schedule: [], loading: data.source === "live", source: data.source };
   }
   // Kern-Store gewinnt: Polling hält dort Live-Scores aktuell
   const fresh = new Map(data.matches.map((m) => [m.id, m]));
-  const schedule = base.map((m) => fresh.get(m.id) ?? m);
+  const schedule = data.schedule.map((m) => fresh.get(m.id) ?? m);
   return { schedule, loading: false, source: data.source };
 }
 
@@ -193,8 +211,7 @@ export function useMatch(id: string | undefined): { match: Match | undefined; lo
     ? (data.matches.find((m) => m.id === id) ?? data.schedule?.find((m) => m.id === id))
     : undefined;
 
-  // Deep-Link auf ein Spiel außerhalb des 3-Tage-Fensters (z. B. Reload auf
-  // einer Spielplan-Partie): Spielplan nachladen, statt "nicht gefunden".
+  // Deep-Link auf ein Spiel außerhalb des 3-Tage-Fensters: Spielplan nachladen.
   const needSchedule =
     id !== undefined &&
     !data.loading &&
@@ -241,14 +258,9 @@ export function useMatch(id: string | undefined): { match: Match | undefined; lo
 const sameLocalDay = (iso: string, ref: Date) =>
   new Date(iso).toDateString() === ref.toDateString();
 
-// Bezugstag der Mock-Daten (12. Juni 2026, lokal). Im Demo-Modus laufen die
-// "Heute"/"Gestern"-Selektoren gegen diesen Tag, sonst wären sie außerhalb des
-// fixen Mock-Fensters (11.–13. Juni) immer leer.
-const MOCK_NOW = new Date(2026, 5, 12, 12, 0, 0);
-
-/** Bezugszeitpunkt: echter Takt im Live-Modus, fixer Mock-Tag im Demo-Modus. */
+/** Bezugszeitpunkt: das echte Jetzt. */
 export function effectiveNow(): Date {
-  return store.source === "mock" ? new Date(MOCK_NOW) : new Date();
+  return new Date();
 }
 
 /** Spiele eines Tages relativ zu „jetzt" (0 = heute, -1 = gestern). */
@@ -259,3 +271,47 @@ export function matchesOn(matches: Match[], dayOffset: number): Match[] {
 
 export const liveOf = (matches: Match[]): Match[] =>
   matches.filter((m) => m.status === "live");
+
+/* --------------------- Spielverlauf (Live-Events) ------------------ */
+
+/**
+ * Ereignis-Zeitstrahl eines Spiels (Tore, Karten, Wechsel, Fouls) aus dem
+ * ESPN-Summary. Bei Live-Spielen alle 60 s aktualisiert. Nur im Live-Modus.
+ */
+export function useMatchEvents(
+  id: string | undefined,
+  status: MatchStatus | undefined
+): { events: MatchEvent[]; loading: boolean } {
+  const [events, setEvents] = useState<MatchEvent[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!id || status === undefined || status === "upcoming" || store.source !== "live") {
+      setEvents([]);
+      setLoading(false);
+      return;
+    }
+    let cancelled = false;
+    const load = (initial: boolean) => {
+      if (initial) setLoading(true);
+      fetchMatchEvents(id)
+        .then((evs) => {
+          if (!cancelled) setEvents(evs);
+        })
+        .catch(() => {
+          if (!cancelled && initial) setEvents([]);
+        })
+        .finally(() => {
+          if (!cancelled && initial) setLoading(false);
+        });
+    };
+    load(true);
+    const timer = status === "live" ? setInterval(() => load(false), 60_000) : undefined;
+    return () => {
+      cancelled = true;
+      if (timer) clearInterval(timer);
+    };
+  }, [id, status]);
+
+  return { events, loading };
+}

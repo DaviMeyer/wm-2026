@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { RefreshCw, WifiOff } from "lucide-react";
 import { teamByCode } from "../data/wm";
 import { cn } from "../lib/utils";
 
@@ -186,6 +187,38 @@ export function StatBar({
 /** Eleganter Lade-Skeleton-Block. */
 export function Skeleton({ className }: { className?: string }) {
   return <div className={cn("skeleton", className)} aria-hidden="true" />;
+}
+
+/**
+ * Ehrlicher Fehlerzustand, wenn die Live-Daten von ESPN nicht erreichbar sind.
+ * Bewusst KEINE Demo-/Platzhalterdaten – lieber transparent als erfunden.
+ */
+export function ErrorState({
+  onRetry,
+  title = "Live-Daten nicht erreichbar",
+  message = "Die WM-Daten von ESPN konnten gerade nicht geladen werden. Es werden bewusst keine Demo-Daten angezeigt – bitte später erneut versuchen.",
+}: {
+  onRetry?: () => void;
+  title?: string;
+  message?: string;
+}) {
+  return (
+    <Card className="mx-auto mt-6 max-w-md p-6 text-center sm:p-8">
+      <WifiOff className="mx-auto h-10 w-10 text-zinc-600" aria-hidden="true" />
+      <h2 className="mt-4 font-display text-lg font-extrabold text-zinc-50">{title}</h2>
+      <p className="mt-2 text-sm leading-relaxed text-zinc-500">{message}</p>
+      {onRetry && (
+        <button
+          type="button"
+          onClick={onRetry}
+          className="mt-6 inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-xl bg-volt-400 px-5 text-sm font-bold text-pitch-950 transition-colors duration-200 hover:bg-volt-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-volt-400/60 focus-visible:ring-offset-2 focus-visible:ring-offset-pitch-950"
+        >
+          <RefreshCw className="h-4 w-4" aria-hidden="true" />
+          Erneut versuchen
+        </button>
+      )}
+    </Card>
+  );
 }
 
 /** Kleine Kategorie-/Status-Pille. */

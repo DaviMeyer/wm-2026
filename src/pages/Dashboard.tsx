@@ -2,10 +2,10 @@ import { Link } from "react-router-dom";
 import { motion, type Variants } from "framer-motion";
 import { CalendarDays, ChevronRight, ExternalLink, MapPin, Newspaper } from "lucide-react";
 import { teamByCode, venueById, type Match, type NewsItem } from "../data/wm";
-import { LiveBadge, Pill, SectionHeader, Skeleton, TeamCrest } from "../components/ui";
+import { ErrorState, LiveBadge, Pill, SectionHeader, Skeleton, TeamCrest } from "../components/ui";
 import { AIPredictionCard } from "../components/ai/AIPredictionCard";
 import { FavoritesBar } from "../components/dashboard/FavoritesBar";
-import { effectiveNow, liveOf, matchesOn, useWmData } from "../lib/useWmData";
+import { effectiveNow, liveOf, matchesOn, retry, useWmData } from "../lib/useWmData";
 import { cn, kickoffUser, timeAgo } from "../lib/utils";
 
 /** "Fr., 12. Juni" relativ zum Bezugstag. */
@@ -226,7 +226,7 @@ function ResultRow({ match }: { match: Match }) {
     <Link
       to={`/match/${match.id}`}
       aria-label={`Ergebnis: ${home.name} ${match.homeScore} zu ${match.awayScore} gegen ${away.name}`}
-      className="flex min-h-11 cursor-pointer items-center gap-2 rounded-xl px-2 py-2.5 transition-colors duration-200 hover:bg-white/[0.04] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-volt-400 sm:gap-3 sm:px-3"
+      className="flex min-h-11 cursor-pointer items-center gap-2 rounded-xl px-2 py-2.5 transition-colors duration-200 hover:bg-zinc-500/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-volt-400 sm:gap-3 sm:px-3"
     >
       <span className="label-caps hidden w-14 shrink-0 sm:block">
         {match.group ? `Gr. ${match.group}` : "WM"}
@@ -347,6 +347,10 @@ export default function Dashboard() {
     );
   }
 
+  if (source === "error") {
+    return <ErrorState onRetry={retry} />;
+  }
+
   return (
     <motion.div
       variants={page}
@@ -358,9 +362,7 @@ export default function Dashboard() {
       <motion.section variants={rise} aria-label="Favoriten-Schnellzugriff">
         <FavoritesBar
           trailing={
-            <Pill tone={source === "live" ? "volt" : "neutral"}>
-              {source === "live" ? "Live-Daten · ESPN" : "Demo-Daten · API offline"}
-            </Pill>
+            <Pill tone="volt">Live-Daten · ESPN</Pill>
           }
         />
       </motion.section>

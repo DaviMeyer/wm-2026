@@ -8,6 +8,27 @@
       name="description"
       content="WM 2026 – Live-Daten, KI-Insights und Turnier-Simulator zur FIFA Fußball-Weltmeisterschaft 2026 in USA, Kanada und Mexiko."
     />
+    <!-- Theme vor dem ersten Paint setzen (verhindert Hell/Dunkel-Aufblitzen).
+         Spiegelt die Logik aus src/lib/theme.tsx; Keys müssen übereinstimmen. -->
+    <script>
+      (function () {
+        try {
+          var m = localStorage.getItem("wm26-theme-mode") || "dark";
+          var a = localStorage.getItem("wm26-theme-accent") || "volt";
+          var dark =
+            m === "dark" ||
+            (m === "system" &&
+              window.matchMedia("(prefers-color-scheme: dark)").matches);
+          var root = document.documentElement;
+          root.classList.remove("dark", "light");
+          root.classList.add(dark ? "dark" : "light");
+          root.setAttribute("data-accent", a);
+          document
+            .querySelector('meta[name="theme-color"]')
+            .setAttribute("content", dark ? "#09090b" : "#f4f5f7");
+        } catch (e) {}
+      })();
+    </script>
     <title>WM 2026 · Live-Daten & KI-Insights</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />

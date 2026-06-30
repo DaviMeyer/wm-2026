@@ -26,13 +26,13 @@ export function AITacticalSummary({
     >
       <h3 className="flex items-center gap-2 font-display text-sm font-extrabold uppercase tracking-wider text-zinc-100">
         <BrainCircuit className="h-4 w-4 text-azure-400" aria-hidden="true" />
-        Taktische KI-Analyse
+        Markteinschätzung
       </h3>
       <p className="mt-3 max-w-prose text-sm leading-relaxed text-zinc-300">
         {prediction.tacticalSummary}
       </p>
       <p className="mt-4 border-t border-line pt-3 text-xs text-zinc-600">
-        Generiert von WM-KI · simuliert
+        Modellhafte Einschätzung aus Buchmacherquoten · ESPN/DraftKings
       </p>
     </motion.div>
   );

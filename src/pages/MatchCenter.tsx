@@ -12,6 +12,7 @@ import { AITacticalSummary } from "../components/ai/AITacticalSummary";
 import { MomentumChart } from "../components/match/MomentumChart";
 import { PitchLineups } from "../components/match/PitchLineups";
 import { MatchStatsPanel } from "../components/match/MatchStatsPanel";
+import { MatchTimeline } from "../components/match/MatchTimeline";
 import { cn, deriveMomentum, formatDate, kickoffUser } from "../lib/utils";
 
 /* ---------------------------------------------------------------- */
@@ -20,9 +21,10 @@ import { cn, deriveMomentum, formatDate, kickoffUser } from "../lib/utils";
 
 const TABS = [
   { id: "uebersicht", label: "Übersicht" },
+  { id: "verlauf", label: "Verlauf" },
   { id: "aufstellung", label: "Aufstellung" },
   { id: "statistik", label: "Statistik" },
-  { id: "ki", label: "KI-Analyse" },
+  { id: "ki", label: "Prognose" },
 ] as const;
 
 type TabId = (typeof TABS)[number]["id"];
@@ -37,7 +39,6 @@ const fadeUp: Variants = {
   show: { opacity: 1, y: 0, transition: { duration: 0.35, ease: "easeOut" } },
 };
 
-const fmtXg = (v: number) => v.toFixed(2).replace(".", ",");
 const fmtPct = (v: number) => `${v} %`;
 
 function NotFound() {
@@ -182,12 +183,9 @@ function OverviewTab({ match }: { match: Match }) {
   const home = teamByCode(match.homeCode);
   const away = teamByCode(match.awayCode);
 
-  // Echte Momentum-Kurve, falls vorhanden (Mock-Drehbuch), sonst aus den
-  // echten Toren + Ballbesitz geschätzt – die ESPN-API liefert kein Momentum.
-  const momentum = useMemo(
-    () => match.momentum ?? deriveMomentum(match.goals ?? [], match),
-    [match]
-  );
+  // Attack Momentum aus echten Toren + Ballbesitz geschätzt – die ESPN-API
+  // liefert keine Momentum-Zeitreihe (im Chart als Schätzung gekennzeichnet).
+  const momentum = useMemo(() => deriveMomentum(match.goals ?? [], match), [match]);
 
   if (match.status === "upcoming") {
     return (
@@ -199,7 +197,8 @@ function OverviewTab({ match }: { match: Match }) {
             <Card className="p-6 text-center sm:p-8">
               <BrainCircuit className="mx-auto h-8 w-8 text-zinc-600" aria-hidden="true" />
               <p className="mt-3 text-sm text-zinc-500">
-                Die KI-Prognose für diese Partie wird derzeit berechnet.
+                Für diese Partie liegen noch keine Buchmacherquoten für eine
+                Prognose vor.
               </p>
             </Card>
           )}
@@ -207,9 +206,8 @@ function OverviewTab({ match }: { match: Match }) {
         <Card className="flex items-start gap-3 p-5 lg:col-span-2">
           <Info className="mt-0.5 h-4 w-4 shrink-0 text-azure-400" aria-hidden="true" />
           <p className="text-sm leading-relaxed text-zinc-400">
-            Attack Momentum, Live-Statistiken und Spielerbewertungen erscheinen hier ab
-            Anstoß. Bis dahin liefert die KI-Prognose den besten Vorgeschmack auf die
-            Partie.
+            Attack Momentum und Live-Statistiken erscheinen hier ab Anstoß. Bis dahin
+            liefert die Markt-Prognose den besten Vorgeschmack auf die Partie.
           </p>
         </Card>
       </div>
@@ -223,23 +221,15 @@ function OverviewTab({ match }: { match: Match }) {
           momentum={momentum}
           homeName={home.name}
           awayName={away.name}
-          estimated={!match.momentum}
+          estimated
         />
       </Card>
       <Card className="p-5 lg:col-span-2">
         <p className="mb-5 font-display text-sm font-extrabold tracking-tight text-zinc-100">
           Kurz-Statistik
         </p>
-        {match.stats && (match.stats.xg || match.stats.possession) ? (
+        {match.stats && (match.stats.possession || match.stats.shots) ? (
           <div className="space-y-5">
-            {match.stats.xg && (
-              <StatBar
-                label="Expected Goals"
-                home={match.stats.xg[0]}
-                away={match.stats.xg[1]}
-                format={fmtXg}
-              />
-            )}
             {match.stats.possession && (
               <StatBar
                 label="Ballbesitz"
@@ -272,10 +262,10 @@ function AITab({ match }: { match: Match }) {
       <Card className="mx-auto max-w-lg p-6 text-center sm:p-8">
         <BrainCircuit className="mx-auto h-8 w-8 text-zinc-600" aria-hidden="true" />
         <p className="mt-3 font-display text-sm font-extrabold text-zinc-200">
-          Keine KI-Analyse verfügbar
+          Keine Markt-Prognose verfügbar
         </p>
         <p className="mt-1 text-sm text-zinc-500">
-          Für diese Partie wurde noch keine Prognose berechnet.
+          Für diese Partie liegen keine Buchmacherquoten vor.
         </p>
       </Card>
     );
@@ -370,6 +360,7 @@ export default function MatchCenter() {
             transition={{ duration: 0.2, ease: "easeOut" }}
           >
             {tab === "uebersicht" && <OverviewTab match={match} />}
+            {tab === "verlauf" && <MatchTimeline match={match} />}
             {tab === "aufstellung" && <PitchLineups match={match} />}
             {tab === "statistik" && (
               <MatchStatsPanel match={match} className="mx-auto max-w-2xl" />

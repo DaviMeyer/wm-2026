@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { motion } from "framer-motion";
 import { ChevronDown, Plus, Star } from "lucide-react";
 import { DEFAULT_FAVORITES, TEAMS, teamByCode } from "../../data/wm";
-import { FormDots, TeamCrest } from "../ui";
+import { TeamCrest } from "../ui";
 import { useWmData } from "../../lib/useWmData";
 import { cn } from "../../lib/utils";
 
@@ -114,18 +114,15 @@ export function FavoritesBar({
               className="flex min-h-11 shrink-0 items-center gap-2.5 rounded-xl border border-line bg-pitch-900/80 px-3 transition-colors duration-200 hover:border-zinc-600"
             >
               <TeamCrest code={code} size="sm" />
-              <span className="flex flex-col">
-                <span className="max-w-36 truncate text-xs font-semibold leading-tight text-zinc-200">
-                  {team.name}
-                </span>
-                <FormDots form={team.form} />
+              <span className="max-w-36 truncate text-xs font-semibold leading-tight text-zinc-200">
+                {team.name}
               </span>
               <button
                 type="button"
                 onClick={() => remove(code)}
                 aria-label={`${team.name} aus Favoriten entfernen`}
                 title="Aus Favoriten entfernen"
-                className="-mr-2 flex h-11 w-11 cursor-pointer items-center justify-center rounded-lg text-gold-400 transition-colors duration-200 hover:bg-white/[0.06] hover:text-zinc-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-volt-400"
+                className="-mr-2 flex h-11 w-11 cursor-pointer items-center justify-center rounded-lg text-gold-400 transition-colors duration-200 hover:bg-zinc-500/10 hover:text-zinc-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-volt-400"
               >
                 <Star className="h-4 w-4 fill-current" aria-hidden="true" />
               </button>
@@ -175,7 +172,7 @@ export function FavoritesBar({
                 type="button"
                 onClick={() => add(team.code)}
                 aria-label={`${team.name} zu Favoriten hinzufügen`}
-                className="flex min-h-11 cursor-pointer items-center gap-2 rounded-xl px-2.5 text-xs font-medium text-zinc-300 transition-colors duration-200 hover:bg-white/[0.06] hover:text-zinc-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-volt-400"
+                className="flex min-h-11 cursor-pointer items-center gap-2 rounded-xl px-2.5 text-xs font-medium text-zinc-300 transition-colors duration-200 hover:bg-zinc-500/10 hover:text-zinc-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-volt-400"
               >
                 <TeamCrest code={team.code} size="sm" />
                 {team.name}

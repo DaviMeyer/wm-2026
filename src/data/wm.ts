@@ -1,6 +1,8 @@
 /* ------------------------------------------------------------------ */
-/*  WM 2026 – zentrales Mock-Datenmodell                               */
-/*  Alle Daten sind Dummy-Daten zur Demonstration der UI.              */
+/*  WM 2026 – Datenmodell + statische Referenzdaten                    */
+/*  Typen, Team-Stammdaten (deutsche Namen/Vereinsfarben) und Stadien. */
+/*  Alle Live-Spiel-, Tabellen- und Verlaufsdaten stammen aus der      */
+/*  ESPN-API (siehe lib/api.ts) – es gibt keine Mock-/Demo-Daten mehr. */
 /* ------------------------------------------------------------------ */
 
 export interface Team {
@@ -11,6 +13,8 @@ export interface Team {
   group: string; // "A" … "L"; leer = nicht qualifiziert/Platzhalter
   form: ("S" | "U" | "N")[]; // Sieg/Unentschieden/Niederlage, letzte 5
   short?: string; // Kurzlabel fürs Crest, falls code zu lang (z. B. "3RD")
+  /** true = K.-o.-Platzhalter („Sieger Gruppe A", „Sieger Spiel 5"), kein echtes Team. */
+  placeholder?: boolean;
 }
 
 export interface Venue {
@@ -25,7 +29,6 @@ export interface Venue {
 export interface PlayerSlot {
   name: string;
   number: number;
-  rating?: number; // Live-Spielerbewertung; fehlt bei API-Daten
   x: number; // 0–100, Position auf dem Spielfeld (horizontal)
   y: number; // 0–100, 0 = eigenes Tor
 }
@@ -37,7 +40,6 @@ export interface Lineup {
 
 /** Einzelne Werte können fehlen – die ESPN-API liefert z. B. kein xG. */
 export interface MatchStats {
-  xg?: [number, number];
   possession?: [number, number];
   shots?: [number, number];
   shotsOnTarget?: [number, number];
@@ -62,6 +64,19 @@ export interface GoalEvent {
   ownGoal?: boolean; // Eigentor
 }
 
+/** Einzelereignis aus dem Spielverlauf (für den Live-Zeitstrahl). */
+export type MatchEventType = "goal" | "yellow" | "red" | "yellowred" | "sub" | "foul";
+
+export interface MatchEvent {
+  minute: number; // Spielminute (für Sortierung)
+  clockLabel: string; // Anzeige inkl. Nachspielzeit, z. B. "45+2'"
+  type: MatchEventType;
+  team: "home" | "away";
+  player?: string; // Hauptbeteiligter (Schütze, verwarnter/foulender Spieler, einwechselnd)
+  playerOut?: string; // bei Wechsel: ausgewechselter Spieler
+  detail?: string; // Originaltext der Quelle (Kontext)
+}
+
 export interface Prediction {
   home: number; // Siegwahrscheinlichkeit in %
   draw: number;
@@ -72,6 +87,19 @@ export interface Prediction {
 }
 
 export type MatchStatus = "live" | "upcoming" | "finished";
+
+/**
+ * Turnierrunde (ESPN-`season.slug`). "group-stage" für die Vorrunde, der Rest
+ * für die K.-o.-Phase. Bestimmt im K.-o.-Baum, in welche Spalte ein Spiel gehört.
+ */
+export type MatchRound =
+  | "group-stage"
+  | "round-of-32"
+  | "round-of-16"
+  | "quarterfinals"
+  | "semifinals"
+  | "3rd-place-match"
+  | "final";
 
 export interface Match {
   id: string;
@@ -86,10 +114,17 @@ export interface Match {
   venueId: string;
   referee?: string;
   stats?: MatchStats;
-  momentum?: MomentumPoint[];
   goals?: GoalEvent[];
   lineups?: { home: Lineup; away: Lineup };
   prediction?: Prediction;
+  /** Turnierrunde aus der API; fehlt bei Mock-Daten (dann via Gruppe abgeleitet). */
+  round?: MatchRound;
+  /** K.-o.: Code des Teams, das weiterkam (auch nach Verlängerung/Elfmeterschießen). */
+  advancedCode?: string;
+  /** Elfmeterschießen: Tore [Heim, Auswärts]; nur gesetzt, wenn es eins gab. */
+  shootout?: [number, number];
+  /** Kurzhinweis zur Entscheidung, z. B. "Paraguay i. E. 4:3" oder "n. V.". */
+  decisionNote?: string;
 }
 
 export interface NewsItem {
@@ -195,6 +230,7 @@ export function registerTeam(partial: {
   group?: string;
   form?: Team["form"];
   short?: string;
+  placeholder?: boolean;
 }): Team {
   const existing = TEAMS.find((t) => t.code === partial.code);
   if (existing) {
@@ -210,6 +246,7 @@ export function registerTeam(partial: {
     group: partial.group ?? "",
     form: partial.form ?? [],
     short: partial.short,
+    placeholder: partial.placeholder,
   };
   TEAMS.push(team);
   return team;
@@ -269,279 +306,6 @@ export function registerVenue(venue: Venue): Venue {
   return venue;
 }
 
-/* --------------------------- Featured Match ------------------------ */
-
-const lineupGER: Lineup = {
-  formation: "4-2-3-1",
-  players: [
-    { name: "ter Stegen", number: 1, rating: 7.4, x: 50, y: 5 },
-    { name: "Kimmich", number: 6, rating: 7.8, x: 85, y: 22 },
-    { name: "Rüdiger", number: 2, rating: 7.1, x: 63, y: 18 },
-    { name: "Tah", number: 4, rating: 6.9, x: 37, y: 18 },
-    { name: "Raum", number: 18, rating: 7.0, x: 15, y: 22 },
-    { name: "Andrich", number: 23, rating: 6.8, x: 38, y: 38 },
-    { name: "Groß", number: 8, rating: 7.2, x: 62, y: 38 },
-    { name: "Sané", number: 19, rating: 7.6, x: 82, y: 58 },
-    { name: "Musiala", number: 10, rating: 8.7, x: 50, y: 62 },
-    { name: "Wirtz", number: 17, rating: 8.2, x: 18, y: 58 },
-    { name: "Füllkrug", number: 9, rating: 7.5, x: 50, y: 82 },
-  ],
-};
-
-const lineupBRA: Lineup = {
-  formation: "4-3-3",
-  players: [
-    { name: "Alisson", number: 1, rating: 6.8, x: 50, y: 5 },
-    { name: "Danilo", number: 2, rating: 6.5, x: 84, y: 22 },
-    { name: "Marquinhos", number: 4, rating: 7.0, x: 62, y: 18 },
-    { name: "Magalhães", number: 3, rating: 6.7, x: 38, y: 18 },
-    { name: "Wendell", number: 16, rating: 6.4, x: 16, y: 22 },
-    { name: "Casemiro", number: 5, rating: 6.6, x: 50, y: 36 },
-    { name: "Guimarães", number: 8, rating: 7.1, x: 68, y: 48 },
-    { name: "Paquetá", number: 7, rating: 7.3, x: 32, y: 48 },
-    { name: "Raphinha", number: 11, rating: 7.7, x: 82, y: 72 },
-    { name: "Endrick", number: 9, rating: 7.9, x: 50, y: 80 },
-    { name: "Vinícius Jr.", number: 10, rating: 8.1, x: 18, y: 72 },
-  ],
-};
-
-const momentumLive: MomentumPoint[] = Array.from({ length: 67 }, (_, i) => {
-  const minute = i + 1;
-  // Drehbuch: BRA startet stark, GER übernimmt ab ~25', BRA-Druckphase ~55'
-  let base: number;
-  if (minute < 15) base = -35 + minute;
-  else if (minute < 25) base = -10 + (minute - 15) * 2;
-  else if (minute < 45) base = 15 + Math.sin(minute / 3) * 18;
-  else if (minute < 58) base = -20 - Math.sin(minute / 2) * 15;
-  else base = 25 + Math.sin(minute / 2.5) * 20;
-  const wobble = ((minute * 7919) % 23) - 11; // deterministisches Rauschen
-  return { minute, value: Math.max(-95, Math.min(95, Math.round(base + wobble * 0.6))) };
-});
-
-/* ------------------------------ Matches ---------------------------- */
-/* Bezugsdatum: 12. Juni 2026 ("heute" im Mock-Universum)              */
-
-export const MATCHES: Match[] = [
-  // Gestern (11. Juni) – Resultate
-  {
-    id: "m-a1",
-    group: "A",
-    status: "finished",
-    kickoff: "2026-06-11T19:00:00-06:00",
-    homeCode: "MEX",
-    awayCode: "RSA",
-    homeScore: 2,
-    awayScore: 0,
-    venueId: "azteca",
-    referee: "F. Letexier (FRA)",
-    goals: [
-      { minute: 23, clockLabel: "23'", team: "home", scorer: "S. Giménez" },
-      { minute: 67, clockLabel: "67'", team: "home", scorer: "R. Jiménez" },
-    ],
-  },
-  {
-    id: "m-a2",
-    group: "A",
-    status: "finished",
-    kickoff: "2026-06-11T16:00:00-06:00",
-    homeCode: "POL",
-    awayCode: "KOR",
-    homeScore: 1,
-    awayScore: 1,
-    venueId: "akron",
-    referee: "J. Maguette N'Diaye (SEN)",
-    goals: [
-      { minute: 41, clockLabel: "41'", team: "home", scorer: "R. Lewandowski", penalty: true },
-      { minute: 78, clockLabel: "78'", team: "away", scorer: "Son Heung-min" },
-    ],
-  },
-  {
-    id: "m-b1",
-    group: "B",
-    status: "finished",
-    kickoff: "2026-06-11T19:00:00-07:00",
-    homeCode: "CAN",
-    awayCode: "QAT",
-    homeScore: 3,
-    awayScore: 1,
-    venueId: "bcplace",
-    referee: "C. Ramos (MEX)",
-    goals: [
-      { minute: 12, clockLabel: "12'", team: "home", scorer: "J. David" },
-      { minute: 55, clockLabel: "55'", team: "home", scorer: "J. David", penalty: true },
-      { minute: 70, clockLabel: "70'", team: "home", scorer: "A. Davies" },
-      { minute: 80, clockLabel: "80'", team: "away", scorer: "A. Hassan" },
-    ],
-  },
-
-  // Heute (12. Juni) – Featured Live-Match
-  {
-    id: "m-e1",
-    group: "E",
-    status: "live",
-    kickoff: "2026-06-12T15:00:00-04:00",
-    minute: 67,
-    homeCode: "GER",
-    awayCode: "BRA",
-    homeScore: 2,
-    awayScore: 1,
-    venueId: "metlife",
-    referee: "S. Marciniak (POL)",
-    goals: [
-      { minute: 18, clockLabel: "18'", team: "away", scorer: "Vinícius Jr." },
-      { minute: 34, clockLabel: "34'", team: "home", scorer: "J. Musiala" },
-      { minute: 61, clockLabel: "61'", team: "home", scorer: "N. Füllkrug" },
-    ],
-    stats: {
-      xg: [2.34, 1.87],
-      possession: [44, 56],
-      shots: [13, 16],
-      shotsOnTarget: [6, 4],
-      passes: [387, 489],
-      passAccuracy: [86, 91],
-      corners: [5, 7],
-      fouls: [11, 9],
-      yellowCards: [2, 3],
-    },
-    momentum: momentumLive,
-    lineups: { home: lineupGER, away: lineupBRA },
-    prediction: {
-      home: 38,
-      draw: 27,
-      away: 35,
-      confidence: "mittel",
-      keyFactors: [
-        "Deutschlands Pressing-Effizienz: 8,2 Ballgewinne im letzten Drittel pro Spiel",
-        "Brasiliens Flügeltempo: 2,1 xG aus Konterangriffen in der Qualifikation",
-        "Musiala in Topform: 4 Scorerpunkte in den letzten 3 Länderspielen",
-      ],
-      tacticalSummary:
-        "Das Duell entscheidet sich im Mittelfeld: Deutschlands aggressives Gegenpressing um Musiala und Wirtz trifft auf Brasiliens vertikales Umschaltspiel über Vinícius Jr. und Raphinha. Gewinnt die DFB-Elf die zweiten Bälle, kontrolliert sie das Spiel – verliert sie sie, wird Brasiliens Flügeltempo zur permanenten Gefahr.",
-    },
-  },
-  {
-    id: "m-e2",
-    group: "E",
-    status: "upcoming",
-    kickoff: "2026-06-12T19:00:00-05:00",
-    homeCode: "TUN",
-    awayCode: "JOR",
-    venueId: "nrg",
-    referee: "I. Elfath (USA)",
-    prediction: {
-      home: 52,
-      draw: 28,
-      away: 20,
-      confidence: "hoch",
-      keyFactors: [
-        "Tunesien mit stabiler Fünferkette: nur 0,7 Gegentore pro Spiel",
-        "Jordaniens Standardstärke: 40 % der Tore nach ruhenden Bällen",
-      ],
-      tacticalSummary:
-        "Tunesien wird das Spiel machen, Jordanien lauert auf Standards und Konter. Der Schlüssel liegt bei Tuniesiens Halbraum-Überladungen gegen Jordaniens tiefen 5-4-1-Block.",
-    },
-  },
-  {
-    id: "m-c1",
-    group: "C",
-    status: "upcoming",
-    kickoff: "2026-06-12T18:00:00-07:00",
-    homeCode: "USA",
-    awayCode: "NZL",
-    venueId: "sofi",
-    referee: "D. Massa (ITA)",
-    prediction: {
-      home: 64,
-      draw: 22,
-      away: 14,
-      confidence: "hoch",
-      keyFactors: [
-        "Heimvorteil: USA in LA mit 9 Siegen aus 10 Heimspielen",
-        "Neuseelands Defensive anfällig bei hohem Pressing",
-      ],
-      tacticalSummary:
-        "Die USA setzen vor Heimkulisse auf frühes Anlaufen und schnelle Flügelwechsel. Neuseeland braucht einen perfekten Defensivtag, um einen Punkt zu entführen.",
-    },
-  },
-  {
-    id: "m-f1",
-    group: "F",
-    status: "upcoming",
-    kickoff: "2026-06-12T20:00:00-04:00",
-    homeCode: "ESP",
-    awayCode: "CRC",
-    venueId: "hardrock",
-    referee: "A. Taylor (ENG)",
-    prediction: {
-      home: 78,
-      draw: 14,
-      away: 8,
-      confidence: "hoch",
-      keyFactors: [
-        "Spanien mit 71 % Ballbesitz-Schnitt in der Qualifikation",
-        "Costa Rica seit 6 Pflichtspielen ohne Sieg gegen Top-10-Nationen",
-      ],
-      tacticalSummary:
-        "Spaniens Positionsspiel gegen Costa Ricas tiefen Block – ein Geduldsspiel. Entscheidend wird, wie früh Spanien das erste Tor erzielt und ob Costa Rica überhaupt Entlastungsangriffe setzen kann.",
-    },
-  },
-
-  // Morgen (13. Juni)
-  {
-    id: "m-h1",
-    group: "H",
-    status: "upcoming",
-    kickoff: "2026-06-13T15:00:00-05:00",
-    homeCode: "ARG",
-    awayCode: "EGY",
-    venueId: "att",
-    referee: "F. Zwayer (GER)",
-    prediction: {
-      home: 71,
-      draw: 18,
-      away: 11,
-      confidence: "hoch",
-      keyFactors: [
-        "Argentinien seit 14 Pflichtspielen ungeschlagen",
-        "Ägypten ohne gesperrten Abwehrchef",
-      ],
-      tacticalSummary:
-        "Der Weltmeister kontrolliert über das Zentrum, Ägypten setzt alles auf Salah-Konter über rechts. Argentiniens linke Abwehrseite wird der meistgeprüfte Raum des Spiels.",
-    },
-  },
-  {
-    id: "m-g1",
-    group: "G",
-    status: "upcoming",
-    kickoff: "2026-06-13T17:00:00-04:00",
-    homeCode: "ENG",
-    awayCode: "UZB",
-    venueId: "gillette",
-    referee: "W. Gomes (BRA)",
-  },
-  {
-    id: "m-k1",
-    group: "K",
-    status: "upcoming",
-    kickoff: "2026-06-13T16:00:00-04:00",
-    homeCode: "ITA",
-    awayCode: "CPV",
-    venueId: "bmo",
-    referee: "M. Oliver (ENG)",
-  },
-];
-
-export const matchById = (id: string): Match | undefined =>
-  MATCHES.find((m) => m.id === id);
-
-export const liveMatches = () => MATCHES.filter((m) => m.status === "live");
-export const todaysMatches = () =>
-  MATCHES.filter((m) => m.kickoff.startsWith("2026-06-12"));
-export const yesterdaysResults = () =>
-  MATCHES.filter((m) => m.kickoff.startsWith("2026-06-11"));
-export const upcomingMatches = () =>
-  MATCHES.filter((m) => m.status === "upcoming");
-
 /* ----------------------------- Standings --------------------------- */
 
 export interface StandingRow {
@@ -555,22 +319,6 @@ export interface StandingRow {
   points: number;
   rank?: number; // offizieller Rang aus der Live-API
 }
-
-/** Tabellen nach Spieltag 1 (Mock). */
-export const STANDINGS: Record<string, StandingRow[]> = Object.fromEntries(
-  GROUPS.map((g) => {
-    const teams = TEAMS.filter((t) => t.group === g);
-    // Spieltag-1-Drehbuch: Stärkeres Team gewinnt 2:0 / 2:1, zweites Duell remis o. knapp
-    const sorted = [...teams].sort((a, b) => b.rating - a.rating);
-    const rows: StandingRow[] = [
-      { teamCode: sorted[0].code, played: 1, won: 1, drawn: 0, lost: 0, goalsFor: 2, goalsAgainst: 0, points: 3 },
-      { teamCode: sorted[1].code, played: 1, won: 1, drawn: 0, lost: 0, goalsFor: 2, goalsAgainst: 1, points: 3 },
-      { teamCode: sorted[2].code, played: 1, won: 0, drawn: 0, lost: 1, goalsFor: 1, goalsAgainst: 2, points: 0 },
-      { teamCode: sorted[3].code, played: 1, won: 0, drawn: 0, lost: 1, goalsFor: 0, goalsAgainst: 2, points: 0 },
-    ];
-    return [g, rows];
-  })
-);
 
 /* --------------------------- Favoriten (Mock) ----------------------- */
 

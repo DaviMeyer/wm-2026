@@ -12,6 +12,8 @@ import {
   type GoalEvent,
   type Lineup,
   type Match,
+  type MatchEvent,
+  type MatchRound,
   type MatchStats,
   type MatchStatus,
   type NewsItem,
@@ -91,14 +93,41 @@ function normalizeColor(c?: string): string | undefined {
   return /^[0-9a-fA-F]{6}$/.test(hex) ? `#${hex}` : undefined;
 }
 
+/** Deutsche Rundennamen + kurzes Crest-Label für K.-o.-Platzhalter. */
+const KO_ROUND: Record<string, { long: string; short: string }> = {
+  "round of 32": { long: "Sechzehntelfinale", short: "Sf" },
+  "round of 16": { long: "Achtelfinale", short: "Af" },
+  quarterfinal: { long: "Viertelfinale", short: "Vf" },
+  semifinal: { long: "Halbfinale", short: "Hf" },
+};
+
 /**
- * K.-o.-Platzhalter erkennen ("Group A Winner", "Third Place Group A/B/C/D/F",
- * "Winner Match 74", "Loser Match 101") und eindeutschen. Eindeutiger Code pro Slot, kurzes
- * Crest-Label, keine Gruppe (damit Favoriten/Simulator sie ignorieren).
+ * K.-o.-Platzhalter aus der ESPN-API erkennen und eindeutschen. ESPN benennt
+ * noch nicht feststehende Teilnehmer über das Ziel-/Quellspiel, z. B.
+ * "Round of 32 5 Winner", "Round of 16 2 Winner", "Quarterfinal 1 Winner",
+ * "Semifinal 1 Winner", "Semifinal 1 Loser" (Spiel um Platz 3) – außerdem die
+ * frühen Gruppen-Platzhalter "Group A Winner"/"Group A 2nd Place"/"Third Place
+ * Group …". Pro Slot ein eindeutiger Code (kein Kollabieren auf "???"), ein
+ * kurzes Crest-Label und keine Gruppe (damit Favoriten/Simulator sie ignorieren).
  */
 function placeholderTeam(apiTeam: Json): { code: string; short: string; name: string } | null {
-  const dn = String(apiTeam?.displayName ?? "");
-  let m = dn.match(/^Group ([A-L]) Winner$/i);
+  const dn = String(apiTeam?.displayName ?? "").trim();
+
+  // K.-o.-Folgespiele: "<Runde> <Nr> <Winner|Loser>"
+  let m = dn.match(/^(Round of 32|Round of 16|Quarterfinal|Semifinal)\s+(\d+)\s+(Winner|Loser)$/i);
+  if (m) {
+    const round = KO_ROUND[m[1].toLowerCase()];
+    const num = m[2];
+    const isWinner = m[3].toLowerCase() === "winner";
+    const key = m[1].toLowerCase().replace(/[^a-z0-9]/g, "");
+    return {
+      code: `${key}-${isWinner ? "W" : "L"}${num}`,
+      short: `${round.short}${num}`,
+      name: `${isWinner ? "Sieger" : "Verlierer"} ${round.long} ${num}`,
+    };
+  }
+
+  m = dn.match(/^Group ([A-L]) Winner$/i);
   if (m) {
     const g = m[1].toUpperCase();
     return { code: `1${g}`, short: `1${g}`, name: `Sieger Gruppe ${g}` };
@@ -117,6 +146,7 @@ function placeholderTeam(apiTeam: Json): { code: string; short: string; name: st
       name: `Dritter ${m[1].trim().replace(/\s/g, "")}`,
     };
   }
+  // Ältere/alternative ESPN-Formate: "Winner Match 74", "Loser of Game 101"
   m = dn.match(/^(Winner|Loser) (?:of )?(?:Match|Game) ?(\d+)/i);
   if (m) {
     const winner = m[1].toLowerCase() === "winner";
@@ -134,6 +164,7 @@ function ensureTeam(apiTeam: Json): string {
       name: placeholder.name,
       short: placeholder.short,
       colors: ["#27272e", "#3f3f46"],
+      placeholder: true,
     });
     return placeholder.code;
   }
@@ -178,6 +209,22 @@ function mapStatus(state?: string): MatchStatus {
   if (state === "in") return "live";
   if (state === "post") return "finished";
   return "upcoming";
+}
+
+/** Gültige Runden-Slugs der ESPN-`season.slug` → unser MatchRound-Typ. */
+const ROUND_SLUGS = new Set<MatchRound>([
+  "group-stage",
+  "round-of-32",
+  "round-of-16",
+  "quarterfinals",
+  "semifinals",
+  "3rd-place-match",
+  "final",
+]);
+
+function mapRound(slug: unknown): MatchRound | undefined {
+  const s = String(slug ?? "");
+  return ROUND_SLUGS.has(s as MatchRound) ? (s as MatchRound) : undefined;
 }
 
 /** Implizite Wahrscheinlichkeit aus US-Moneyline-Quote ("-120", "+380", "EVEN", Zahl). */
@@ -229,43 +276,6 @@ function predictionFromOdds(odds: Json, homeName: string, awayName: string): Pre
       `Das Modell sieht ${fav} vorn (${favPct} %). ` +
       `Je länger die Partie torlos bleibt, desto stärker steigt der Remis-Anteil von aktuell ${draw} % – ` +
       `der Außenseiter wird tief verteidigen und auf Standards sowie Umschaltmomente setzen.`,
-  };
-}
-
-/**
- * Fallback-Prognose aus den Team-Ratings (logistisches Modell) –
- * greift, wenn ESPN keine verwertbaren Quoten liefert.
- */
-function predictionFromRatings(homeCode: string, awayCode: string): Prediction {
-  const home = teamByCode(homeCode);
-  const away = teamByCode(awayCode);
-  const pHomeRaw = 1 / (1 + Math.pow(10, (away.rating - home.rating) / 25));
-  // Je enger die Teams beieinander liegen, desto wahrscheinlicher das Remis
-  const closeness = Math.max(0, 1 - Math.abs(home.rating - away.rating) / 25);
-  const drawShare = 0.2 + 0.08 * closeness;
-  const homePct = Math.round(pHomeRaw * (1 - drawShare) * 100);
-  const awayPct = Math.round((1 - pHomeRaw) * (1 - drawShare) * 100);
-  const drawPct = Math.max(0, 100 - homePct - awayPct);
-  const fav = homePct >= awayPct ? home : away;
-  const other = fav === home ? away : home;
-  const favPct = Math.max(homePct, awayPct);
-  const wins = (form: typeof home.form) => form.filter((f) => f === "S").length;
-  return {
-    home: homePct,
-    draw: drawPct,
-    away: awayPct,
-    confidence: favPct >= 60 ? "hoch" : favPct >= 45 ? "mittel" : "niedrig",
-    keyFactors: [
-      `Modellbasiert: Team-Stärke ${home.name} ${home.rating} vs. ${away.name} ${away.rating}`,
-      home.form.length > 0 && away.form.length > 0
-        ? `Form (letzte 5): ${home.name} ${wins(home.form)} Siege, ${away.name} ${wins(away.form)} Siege`
-        : `${fav.name} geht als Favorit in die Partie (${favPct} %)`,
-      `Remis-Wahrscheinlichkeit: ${drawPct} %`,
-    ],
-    tacticalSummary:
-      `Das Stärkemodell sieht ${fav.name} mit ${favPct} % vorn. ${other.name} dürfte kompakt ` +
-      `verteidigen und auf Umschaltmomente sowie Standards setzen – je länger das Spiel torlos ` +
-      `bleibt, desto realistischer wird das Remis (${drawPct} %).`,
   };
 }
 
@@ -337,6 +347,8 @@ function mapEvent(ev: Json): Match | null {
     .map((n: Json) => String(n?.headline ?? ""))
     .find((h: string) => /group\s+[a-l]/i.test(h));
 
+  const round = mapRound(ev.season?.slug);
+
   const match: Match = {
     id: String(ev.id),
     group: groupNote ? groupNote.match(/group\s+([a-l])/i)![1].toUpperCase() : "",
@@ -348,6 +360,7 @@ function mapEvent(ev: Json): Match | null {
     homeScore: status === "upcoming" ? undefined : num(home.score),
     awayScore: status === "upcoming" ? undefined : num(away.score),
     venueId: ensureVenue(comp.venue),
+    round,
   };
 
   if (status !== "upcoming") {
@@ -355,22 +368,40 @@ function mapEvent(ev: Json): Match | null {
     if (goals.length > 0) match.goals = goals;
   }
 
-  // Für Platzhalter-Paarungen ("Sieger Gruppe A" etc.) keine Prognose —
-  // das Ratings-Modell würde sonst Schein-Wahrscheinlichkeiten erfinden.
+  // K.-o.-Entscheidung: wer kam weiter, und wie? `advance` markiert den
+  // Aufsteiger (auch nach Elfmeterschießen), `shootoutScore` liefert die
+  // Elfmeter-Tore, `detail` ("AET") verrät eine Verlängerung ohne Elfmeter.
+  const isKnockout = round !== undefined && round !== "group-stage";
+  if (isKnockout && status === "finished") {
+    const homeSo = num(home.shootoutScore);
+    const awaySo = num(away.shootoutScore);
+    const hasShootout = homeSo > 0 || awaySo > 0;
+    if (hasShootout) match.shootout = [homeSo, awaySo];
+
+    if (home.advance === true || home.winner === true) match.advancedCode = homeCode;
+    else if (away.advance === true || away.winner === true) match.advancedCode = awayCode;
+
+    const detail = String(comp.status?.type?.detail ?? "");
+    if (hasShootout && match.advancedCode) {
+      const winnerName = teamByCode(match.advancedCode).name;
+      match.decisionNote = `${winnerName} i. E. ${Math.max(homeSo, awaySo)}:${Math.min(homeSo, awaySo)}`;
+    } else if (/aet|a\.e\.t|extra.?time/i.test(detail)) {
+      match.decisionNote = "n. V.";
+    }
+  }
+
+  // Prognose ausschließlich aus echten Buchmacherquoten (ESPN/DraftKings).
+  // Für Platzhalter-Paarungen ("Sieger Gruppe A" etc.) gibt es keine Quoten/Prognose.
   const hasPlaceholder =
     placeholderTeam(home.team) !== null || placeholderTeam(away.team) !== null;
 
-  if (status === "upcoming" && !hasPlaceholder) {
-    if (comp.odds?.[0]) {
-      // Namen aus der Registry: dort steht der deutsche Name (z. B. "Kanada")
-      match.prediction = predictionFromOdds(
-        comp.odds[0],
-        teamByCode(homeCode).name,
-        teamByCode(awayCode).name
-      );
-    }
-    // Fallback: ohne (parsebare) Quoten rechnet das Ratings-Modell
-    match.prediction ??= predictionFromRatings(homeCode, awayCode);
+  if (status === "upcoming" && !hasPlaceholder && comp.odds?.[0]) {
+    // Namen aus der Registry: dort steht der deutsche Name (z. B. "Kanada")
+    match.prediction = predictionFromOdds(
+      comp.odds[0],
+      teamByCode(homeCode).name,
+      teamByCode(awayCode).name
+    );
   }
   return match;
 }
@@ -453,10 +484,23 @@ function mapStats(homeTeam: Json, awayTeam: Json): MatchStats | undefined {
     const a = read(awayTeam, name);
     return h === undefined || a === undefined ? undefined : [h, a];
   };
+  // Passquote aus genauen/gesamten Pässen ableiten (ESPN liefert sie nicht direkt).
+  const passAccuracy = (): [number, number] | undefined => {
+    const ratio = (team: Json): number | undefined => {
+      const acc = read(team, "accuratePasses");
+      const tot = read(team, "totalPasses");
+      return acc !== undefined && tot ? Math.round((acc / tot) * 100) : undefined;
+    };
+    const h = ratio(homeTeam);
+    const a = ratio(awayTeam);
+    return h === undefined || a === undefined ? undefined : [h, a];
+  };
   const stats: MatchStats = {
     possession: pair("possessionPct"),
     shots: pair("totalShots"),
     shotsOnTarget: pair("shotsOnTarget"),
+    passes: pair("totalPasses"),
+    passAccuracy: passAccuracy(),
     corners: pair("wonCorners"),
     fouls: pair("foulsCommitted"),
     yellowCards: pair("yellowCards"),
@@ -534,6 +578,92 @@ export async function fetchMatchDetails(eventId: string): Promise<MatchDetails> 
     lineups: homeLineup && awayLineup ? { home: homeLineup, away: awayLineup } : undefined,
     referee: ref?.displayName ?? ref?.fullName ?? undefined,
   };
+}
+
+/* ----------------------- Spielverlauf (Events) --------------------- */
+
+/**
+ * Ereignis-Zeitstrahl eines Spiels aus dem ESPN-Summary:
+ * Tore/Karten/Wechsel aus `keyEvents` (mit Spieluhr) und Fouls aus dem
+ * `commentary` ("Foul by Spieler (Team)."). Beide tragen eine Minute und
+ * werden einer Seite (Heim/Auswärts) zugeordnet.
+ */
+export async function fetchMatchEvents(eventId: string): Promise<MatchEvent[]> {
+  const data: Json = await getJson(`${SCOREBOARD}/summary?event=${eventId}`);
+  const comps: Json[] = data?.header?.competitions?.[0]?.competitors ?? [];
+  const home = comps.find((c) => c?.homeAway === "home");
+  const away = comps.find((c) => c?.homeAway === "away");
+  const homeId = String(home?.team?.id ?? home?.id ?? "");
+  const awayId = String(away?.team?.id ?? away?.id ?? "");
+
+  const names: { side: "home" | "away"; name: string }[] = [];
+  for (const [side, c] of [["home", home], ["away", away]] as const) {
+    for (const n of [c?.team?.displayName, c?.team?.name, c?.team?.shortDisplayName]) {
+      if (n) names.push({ side, name: String(n).toLowerCase() });
+    }
+  }
+  const sideById = (id: string): "home" | "away" | null =>
+    id && id === homeId ? "home" : id && id === awayId ? "away" : null;
+  const sideByName = (raw: string): "home" | "away" | null =>
+    names.find((x) => x.name === raw.trim().toLowerCase())?.side ?? null;
+  const minuteOf = (label: string): number => {
+    const mm = label.match(/(\d+)/);
+    return mm ? parseInt(mm[1], 10) : 0;
+  };
+
+  const events: MatchEvent[] = [];
+
+  for (const e of (data?.keyEvents ?? []) as Json[]) {
+    const typeText = String(e?.type?.text ?? "").toLowerCase();
+    let type: MatchEvent["type"] | null = null;
+    if (/goal/.test(typeText)) type = "goal";
+    else if (/yellow.?red|second yellow/.test(typeText)) type = "yellowred";
+    else if (/red card/.test(typeText)) type = "red";
+    else if (/yellow card/.test(typeText)) type = "yellow";
+    else if (/substitution/.test(typeText)) type = "sub";
+    if (!type) continue;
+
+    const side =
+      sideById(String(e?.team?.id ?? "")) ?? sideByName(String(e?.team?.displayName ?? ""));
+    if (!side) continue;
+
+    const clockLabel = String(e?.clock?.displayValue ?? "").trim();
+    const players = ((e?.participants ?? e?.athletesInvolved ?? []) as Json[])
+      .map((a) => a?.athlete?.displayName ?? a?.displayName)
+      .filter(Boolean)
+      .map(String);
+
+    events.push({
+      minute: minuteOf(clockLabel),
+      clockLabel: clockLabel || "—",
+      type,
+      team: side,
+      player: players[0],
+      playerOut: type === "sub" ? players[1] : undefined,
+      detail: String(e?.text ?? ""),
+    });
+  }
+
+  for (const c of (data?.commentary ?? []) as Json[]) {
+    const text = String(c?.text ?? "");
+    const fm = text.match(/^Foul by (.+?) \((.+?)\)\.?$/i);
+    if (!fm) continue;
+    const side = sideByName(fm[2]);
+    if (!side) continue;
+    const clockLabel = String(c?.time?.displayValue ?? "").trim();
+    events.push({
+      minute: minuteOf(clockLabel),
+      clockLabel: clockLabel || "—",
+      type: "foul",
+      team: side,
+      player: fm[1],
+      detail: text,
+    });
+  }
+
+  // Chronologisch; bei gleicher Minute Tore/Karten/Wechsel vor Fouls.
+  const rank = (type: MatchEvent["type"]) => (type === "foul" ? 1 : 0);
+  return events.sort((a, b) => a.minute - b.minute || rank(a.type) - rank(b.type));
 }
 
 /* --------------------------- News ---------------------------------- */

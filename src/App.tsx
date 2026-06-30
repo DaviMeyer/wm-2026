@@ -1,9 +1,10 @@
 import { Suspense, lazy, useEffect } from "react";
 import { NavLink, Route, Routes, useLocation } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
-import { BrainCircuit, CalendarDays, LayoutGrid, ListOrdered, Trophy, Radio } from "lucide-react";
+import { CalendarDays, LayoutGrid, ListOrdered, Trophy, Radio } from "lucide-react";
 import { liveOf, useWmData } from "./lib/useWmData";
 import { Skeleton } from "./components/ui";
+import ThemeSwitcher from "./components/ThemeSwitcher";
 import { cn } from "./lib/utils";
 
 const Dashboard = lazy(() => import("./pages/Dashboard"));
@@ -11,14 +12,12 @@ const MatchCenter = lazy(() => import("./pages/MatchCenter"));
 const Schedule = lazy(() => import("./pages/Schedule"));
 const Standings = lazy(() => import("./pages/Standings"));
 const Bracket = lazy(() => import("./pages/Bracket"));
-const Simulator = lazy(() => import("./pages/Simulator"));
 
 const NAV = [
   { to: "/", label: "Dashboard", icon: LayoutGrid, end: true },
   { to: "/spielplan", label: "Spielplan", icon: CalendarDays },
   { to: "/tabellen", label: "Tabellen", icon: ListOrdered },
   { to: "/ko", label: "K.-o.-Baum", icon: Trophy },
-  { to: "/simulator", label: "KI-Simulator", icon: BrainCircuit },
 ];
 
 /** Browser-Tab-Titel pro Route – hilft bei Verlauf, Tabs und Vorlese-Tools. */
@@ -27,7 +26,6 @@ const PAGE_TITLES: Record<string, string> = {
   "/spielplan": "Spielplan · WM 2026",
   "/tabellen": "Gruppentabellen · WM 2026",
   "/ko": "K.-o.-Baum · WM 2026",
-  "/simulator": "KI-Simulator · WM 2026",
 };
 
 function Navbar() {
@@ -55,8 +53,8 @@ function Navbar() {
                 cn(
                   "flex min-h-11 min-w-11 cursor-pointer items-center justify-center gap-2 rounded-xl px-2.5 text-sm font-medium transition-colors duration-200 sm:px-3",
                   isActive
-                    ? "bg-white/[0.08] text-zinc-50"
-                    : "text-zinc-400 hover:bg-white/[0.04] hover:text-zinc-200"
+                    ? "bg-zinc-500/15 text-zinc-50"
+                    : "text-zinc-400 hover:bg-zinc-500/10 hover:text-zinc-200"
                 )
               }
             >
@@ -132,15 +130,15 @@ export default function App() {
                 <Route path="/match/:id" element={<MatchCenter />} />
                 <Route path="/tabellen" element={<Standings />} />
                 <Route path="/ko" element={<Bracket />} />
-                <Route path="/simulator" element={<Simulator />} />
               </Routes>
             </Suspense>
           </motion.div>
         </AnimatePresence>
       </main>
       <footer className="border-t border-line px-4 py-6 text-center text-xs text-zinc-600">
-        WM 2026 · Spieldaten via ESPN-API, KI-Inhalte &amp; News simuliert · Kein offizielles FIFA-Produkt
+        WM 2026 · Alle Daten live via ESPN-API · Kein offizielles FIFA-Produkt
       </footer>
+      <ThemeSwitcher />
     </div>
   );
 }

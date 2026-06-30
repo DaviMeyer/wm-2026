@@ -66,6 +66,10 @@
 
 :root {
   color-scheme: dark;
+  /* Modus-abhängige Tints (Glas-Flächen, Skeleton-Schimmer) – Standard = Dunkel */
+  --glass-bg: rgb(255 255 255 / 0.04);
+  --glass-border: rgb(255 255 255 / 0.06);
+  --shimmer: rgb(255 255 255 / 0.05);
 }
 
 body {
@@ -82,7 +86,9 @@ body {
 }
 
 @utility glass {
-  @apply border border-white/[0.06] bg-white/[0.04] backdrop-blur-xl;
+  @apply backdrop-blur-xl;
+  background-color: var(--glass-bg);
+  border: 1px solid var(--glass-border);
 }
 
 @utility display-num {
@@ -102,7 +108,7 @@ body {
   background-image: linear-gradient(
     100deg,
     transparent 30%,
-    rgb(255 255 255 / 0.05) 50%,
+    var(--shimmer) 50%,
     transparent 70%
   );
   background-size: 200% 100%;
@@ -110,13 +116,13 @@ body {
 
 ::selection {
   background: var(--color-volt-400);
-  color: #09090b;
+  color: var(--color-pitch-950);
 }
 
 /* Dezente Scrollbars im Broadcast-Look */
 * {
   scrollbar-width: thin;
-  scrollbar-color: #27272e transparent;
+  scrollbar-color: var(--color-pitch-700) transparent;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -127,4 +133,100 @@ body {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+/* ================================================================== */
+/*  Theming: Hell-Modus + Farbthemen (Akzent)                          */
+/*                                                                     */
+/*  Funktioniert komplett über CSS-Variablen-Overrides – Tailwind v4   */
+/*  kompiliert alle Farb-Utilities zu var(--color-…), daher schalten   */
+/*  bestehende Klassen (bg-pitch-*, text-zinc-*, *-volt-*) automatisch  */
+/*  mit, ohne dass die Komponenten angefasst werden müssen.            */
+/*  Modus wird über html.light / html.dark gesteuert, der Akzent über   */
+/*  html[data-accent="…"] – beides setzt der ThemeProvider.            */
+/* ================================================================== */
+
+/* ---- Hell-Modus: Oberflächen & Text rollengetreu invertieren ---- */
+html.light {
+  color-scheme: light;
+
+  /* Oberflächen (pitch = Hintergründe, line = Rahmen) */
+  --color-pitch-950: #f4f5f7; /* Seiten-Hintergrund */
+  --color-pitch-900: #ffffff; /* Karten */
+  --color-pitch-850: #eef0f3;
+  --color-pitch-800: #e8eaee; /* Chips, Skeleton, Stat-Spuren */
+  --color-pitch-700: #d7dae1; /* Hover-Rahmen, neutrale Balken, Scrollbar */
+  --color-line: #e3e5ea; /* Rahmen */
+
+  /* Text (zinc fast nur für Text – Skala spiegeln: hell ↔ dunkel) */
+  --color-zinc-50: #18181b;
+  --color-zinc-100: #1f1f23;
+  --color-zinc-200: #27272a; /* Primärtext */
+  --color-zinc-300: #3f3f46;
+  --color-zinc-400: #52525b; /* Sekundärtext */
+  --color-zinc-500: #71717a; /* gedämpft (label-caps) – bleibt mittelgrau */
+  --color-zinc-600: #a1a1aa; /* sehr dezent */
+
+  /* Glas (Navbar) & Skeleton-Schimmer auf hellem Grund */
+  --glass-bg: rgb(255 255 255 / 0.72);
+  --glass-border: rgb(9 9 11 / 0.08);
+  --shimmer: rgb(9 9 11 / 0.05);
+}
+
+/* Hintergrund-Glows dezent an den hellen Untergrund anpassen */
+html.light body {
+  background-image:
+    radial-gradient(1100px 500px at 75% -10%, rgb(56 189 248 / 0.1), transparent 60%),
+    radial-gradient(900px 420px at 10% -5%, rgb(205 245 66 / 0.12), transparent 55%);
+}
+
+/* ---- Farbthemen: Akzent (volt-Skala) je Modus ---- */
+/*  Dunkel = leuchtend, Hell = mitteldunkel/satt. So bleibt sowohl     */
+/*  text-volt-400 (auf der Oberfläche) als auch bg-volt-400 +          */
+/*  text-pitch-950 (heller "on-accent"-Text) in beiden Modi lesbar.    */
+
+/* Dunkel-Sets */
+html.dark[data-accent="volt"] {
+  --color-volt-300: #e2ff7a; --color-volt-400: #cdf542; --color-volt-500: #b4e51c; --color-volt-600: #8fb915;
+}
+html.dark[data-accent="blue"] {
+  --color-volt-300: #7dd3fc; --color-volt-400: #38bdf8; --color-volt-500: #0ea5e9; --color-volt-600: #0284c7;
+}
+html.dark[data-accent="green"] {
+  --color-volt-300: #6ee7b7; --color-volt-400: #34d399; --color-volt-500: #10b981; --color-volt-600: #059669;
+}
+html.dark[data-accent="purple"] {
+  --color-volt-300: #c4b5fd; --color-volt-400: #a78bfa; --color-volt-500: #8b5cf6; --color-volt-600: #7c3aed;
+}
+html.dark[data-accent="orange"] {
+  --color-volt-300: #fdba74; --color-volt-400: #fb923c; --color-volt-500: #f97316; --color-volt-600: #ea580c;
+}
+html.dark[data-accent="pink"] {
+  --color-volt-300: #f9a8d4; --color-volt-400: #f472b6; --color-volt-500: #ec4899; --color-volt-600: #db2777;
+}
+html.dark[data-accent="teal"] {
+  --color-volt-300: #5eead4; --color-volt-400: #2dd4bf; --color-volt-500: #14b8a6; --color-volt-600: #0d9488;
+}
+
+/* Hell-Sets (satt, damit Text auf Weiß und heller Text auf dem Akzent lesbar bleibt) */
+html.light[data-accent="volt"] {
+  --color-volt-300: #65a30d; --color-volt-400: #4d7c0f; --color-volt-500: #3f6212; --color-volt-600: #365314;
+}
+html.light[data-accent="blue"] {
+  --color-volt-300: #0284c7; --color-volt-400: #0369a1; --color-volt-500: #075985; --color-volt-600: #0c4a6e;
+}
+html.light[data-accent="green"] {
+  --color-volt-300: #059669; --color-volt-400: #047857; --color-volt-500: #065f46; --color-volt-600: #064e3b;
+}
+html.light[data-accent="purple"] {
+  --color-volt-300: #7c3aed; --color-volt-400: #6d28d9; --color-volt-500: #5b21b6; --color-volt-600: #4c1d95;
+}
+html.light[data-accent="orange"] {
+  --color-volt-300: #ea580c; --color-volt-400: #c2410c; --color-volt-500: #9a3412; --color-volt-600: #7c2d12;
+}
+html.light[data-accent="pink"] {
+  --color-volt-300: #db2777; --color-volt-400: #be185d; --color-volt-500: #9d174d; --color-volt-600: #831843;
+}
+html.light[data-accent="teal"] {
+  --color-volt-300: #0d9488; --color-volt-400: #0f766e; --color-volt-500: #115e59; --color-volt-600: #134e4a;
 }

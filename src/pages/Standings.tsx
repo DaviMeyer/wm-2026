@@ -4,8 +4,8 @@ import type { Variants } from "framer-motion";
 import { ChevronsLeftRight } from "lucide-react";
 import { GROUPS, teamByCode } from "../data/wm";
 import type { StandingRow } from "../data/wm";
-import { FormDots, Pill, Skeleton, TeamCrest } from "../components/ui";
-import { useWmData } from "../lib/useWmData";
+import { ErrorState, Pill, Skeleton, TeamCrest } from "../components/ui";
+import { retry, useWmData } from "../lib/useWmData";
 import { cn } from "../lib/utils";
 
 /* ------------------------------------------------------------------ */
@@ -84,11 +84,8 @@ function GroupTable({ group, allRows }: { group: string; allRows: StandingRow[] 
               <th scope="col" className="label-caps px-2 py-2.5 text-right">
                 Diff
               </th>
-              <th scope="col" className="label-caps px-2 py-2.5 text-right">
+              <th scope="col" className="label-caps px-2 py-2.5 pr-4 text-right">
                 Pkt
-              </th>
-              <th scope="col" className="label-caps py-2.5 pl-2 pr-4 text-right">
-                Form
               </th>
             </tr>
           </thead>
@@ -154,11 +151,8 @@ function GroupTable({ group, allRows }: { group: string; allRows: StandingRow[] 
                   >
                     {diffLabel(row)}
                   </td>
-                  <td className="px-2 py-2.5 text-right font-mono text-sm font-bold tabular-nums text-zinc-50">
+                  <td className="px-2 py-2.5 pr-4 text-right font-mono text-sm font-bold tabular-nums text-zinc-50">
                     {row.points}
-                  </td>
-                  <td className="py-2.5 pl-2 pr-4 text-right">
-                    <FormDots form={team.form} />
                   </td>
                 </tr>
               );
@@ -187,6 +181,10 @@ export default function Standings() {
     );
   }
 
+  if (source === "error") {
+    return <ErrorState onRetry={retry} />;
+  }
+
   return (
     <div>
       <motion.header
@@ -201,9 +199,7 @@ export default function Standings() {
           </h1>
           <p className="mt-1 text-sm text-zinc-500">Alle 12 Gruppen der WM 2026</p>
         </div>
-        <Pill tone={source === "live" ? "volt" : "neutral"}>
-          {source === "live" ? "Live-Daten · ESPN" : "Demo-Daten"}
-        </Pill>
+        <Pill tone="volt">Live-Daten · ESPN</Pill>
       </motion.header>
 
       {/* Gruppen-Filter */}
