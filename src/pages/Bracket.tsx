@@ -34,13 +34,22 @@ const third = (groups: string): Slot => ({
   label: `3. Gruppe ${groups}`,
 });
 
-/** Folgerunde: paart die Sieger der jeweils benachbarten Spiele. */
-function nextRound(prev: BracketMatch[], startNo: number): BracketMatch[] {
-  return Array.from({ length: prev.length / 2 }, (_, i) =>
+/**
+ * Folgerunde: verknüpft die Sieger zweier Vorrunden-Spiele nach offizieller
+ * FIFA-Paarung. Die K.-o.-Runde der WM 2026 ist nicht durchgehend sequenziell
+ * verschachtelt – ab dem Achtelfinale werden Spiele „über Kreuz" gepaart –,
+ * darum nennt `links` die Quell-Spiele (Index in `prev`) je Folgespiel explizit,
+ * statt stur benachbarte Sieger zu kombinieren.
+ */
+function nextRound(
+  prev: BracketMatch[],
+  links: { no: number; a: number; b: number }[]
+): BracketMatch[] {
+  return links.map(({ no, a, b }) =>
     m(
-      startNo + i,
-      { kind: "tbd", label: `Sieger Spiel ${prev[2 * i].no}` },
-      { kind: "tbd", label: `Sieger Spiel ${prev[2 * i + 1].no}` }
+      no,
+      { kind: "tbd", label: `Sieger Spiel ${prev[a].no}` },
+      { kind: "tbd", label: `Sieger Spiel ${prev[b].no}` }
     )
   );
 }
@@ -62,34 +71,62 @@ function buildRounds(standings: Record<string, StandingRow[]>): Round[] {
       : { kind: "tbd", label: `${pos === 0 ? "Sieger" : "2."} Gruppe ${group}` };
   };
 
-  /* 32er-Runde: 12 Sieger, 12 Zweite, 8 beste Dritte (Platzhalter). */
+  /*
+   * Offizielles K.-o.-Schema der WM 2026 (FIFA / Wikipedia), Spielnummern 73–104.
+   * 16 Sechzehntelfinals: 4× Zweiter–Zweiter, 8× Sieger–Dritter, 4× Sieger–Zweiter.
+   * Jeder Gruppensieger und -zweite kommt genau einmal vor; Sieger und Zweiter
+   * derselben Gruppe können sich erst im Finale begegnen.
+   * Die acht Dritten-Slots tragen je fünf mögliche Gruppen (FIFA-Annex C);
+   * welcher Dritte konkret antritt, steht erst nach der Gruppenphase fest.
+   */
   const roundOf32: BracketMatch[] = [
-    // Obere Hälfte
-    m(1, projected("A", 0), third("C/E/F")),
-    m(2, projected("K", 0), projected("F", 1)),
-    m(3, projected("E", 0), third("A/B/D")),
-    m(4, projected("G", 1), projected("I", 1)),
-    m(5, projected("C", 0), third("E/H/I")),
-    m(6, projected("A", 1), projected("B", 1)),
-    m(7, projected("I", 0), projected("D", 1)),
-    m(8, projected("G", 0), third("J/K/L")),
-    // Untere Hälfte
-    m(9, projected("B", 0), third("D/G/I")),
-    m(10, projected("E", 1), projected("H", 1)),
-    m(11, projected("F", 0), third("A/C/H")),
-    m(12, projected("J", 1), projected("K", 1)),
-    m(13, projected("D", 0), third("B/F/K")),
-    m(14, projected("J", 0), projected("L", 1)),
-    m(15, projected("H", 0), third("E/G/L")),
-    m(16, projected("L", 0), projected("C", 1)),
+    m(73, projected("A", 1), projected("B", 1)), //  2A – 2B
+    m(74, projected("E", 0), third("A/B/C/D/F")), // 1E – 3.
+    m(75, projected("F", 0), projected("C", 1)), //  1F – 2C
+    m(76, projected("C", 0), projected("F", 1)), //  1C – 2F
+    m(77, projected("I", 0), third("C/D/F/G/H")), // 1I – 3.
+    m(78, projected("E", 1), projected("I", 1)), //  2E – 2I
+    m(79, projected("A", 0), third("C/E/F/H/I")), // 1A – 3.
+    m(80, projected("L", 0), third("E/H/I/J/K")), // 1L – 3.
+    m(81, projected("D", 0), third("B/E/F/I/J")), // 1D – 3.
+    m(82, projected("G", 0), third("A/E/H/I/J")), // 1G – 3.
+    m(83, projected("K", 1), projected("L", 1)), //  2K – 2L
+    m(84, projected("H", 0), projected("J", 1)), //  1H – 2J
+    m(85, projected("B", 0), third("E/F/G/I/J")), // 1B – 3.
+    m(86, projected("J", 0), projected("H", 1)), //  1J – 2H
+    m(87, projected("K", 0), third("D/E/I/J/L")), // 1K – 3.
+    m(88, projected("D", 1), projected("G", 1)), //  2D – 2G
   ];
 
-  const roundOf16 = nextRound(roundOf32, 17);
-  const quarter = nextRound(roundOf16, 25);
-  const semi = nextRound(quarter, 29);
-  const final: BracketMatch[] = [
-    m(31, { kind: "tbd", label: "Sieger HF 1" }, { kind: "tbd", label: "Sieger HF 2" }),
-  ];
+  // Achtelfinale (89–96): die untere Bracket-Hälfte ist umgeordnet –
+  // Spiel 93 nimmt z. B. die Sieger aus 83/84, nicht 81/82.
+  const roundOf16 = nextRound(roundOf32, [
+    { no: 89, a: 0, b: 1 }, //   Sieger 73 – Sieger 74
+    { no: 90, a: 2, b: 3 }, //   Sieger 75 – Sieger 76
+    { no: 91, a: 4, b: 5 }, //   Sieger 77 – Sieger 78
+    { no: 92, a: 6, b: 7 }, //   Sieger 79 – Sieger 80
+    { no: 93, a: 10, b: 11 }, // Sieger 83 – Sieger 84
+    { no: 94, a: 8, b: 9 }, //   Sieger 81 – Sieger 82
+    { no: 95, a: 13, b: 15 }, // Sieger 86 – Sieger 88
+    { no: 96, a: 12, b: 14 }, // Sieger 85 – Sieger 87
+  ]);
+
+  // Viertelfinale (97–100): ebenfalls über Kreuz verknüpft.
+  const quarter = nextRound(roundOf16, [
+    { no: 97, a: 0, b: 1 }, //  Sieger 89 – Sieger 90
+    { no: 98, a: 4, b: 5 }, //  Sieger 93 – Sieger 94
+    { no: 99, a: 2, b: 3 }, //  Sieger 91 – Sieger 92
+    { no: 100, a: 6, b: 7 }, // Sieger 95 – Sieger 96
+  ]);
+
+  // Halbfinale (101–102) und Finale (104).
+  const semi = nextRound(quarter, [
+    { no: 101, a: 0, b: 1 }, // Sieger 97 – Sieger 98
+    { no: 102, a: 2, b: 3 }, // Sieger 99 – Sieger 100
+  ]);
+  const final = nextRound(semi, [
+    { no: 104, a: 0, b: 1 }, // Sieger 101 – Sieger 102
+  ]);
 
   return [
     { title: "Sechzehntelfinale", dates: "28. Juni – 3. Juli", matches: roundOf32 },
