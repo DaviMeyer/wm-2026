@@ -17,6 +17,8 @@ import {
   type MatchStats,
   type MatchStatus,
   type NewsItem,
+  type PlayAction,
+  type PlayActionType,
   type PlayerSlot,
   type Prediction,
   type StandingRow,
@@ -664,6 +666,69 @@ export async function fetchMatchEvents(eventId: string): Promise<MatchEvent[]> {
   // Chronologisch; bei gleicher Minute Tore/Karten/Wechsel vor Fouls.
   const rank = (type: MatchEvent["type"]) => (type === "foul" ? 1 : 0);
   return events.sort((a, b) => a.minute - b.minute || rank(a.type) - rank(b.type));
+}
+
+/* ------------------- Play-by-Play (Momentum) ----------------------- */
+
+/** ESPN-`play.type.text` → unsere momentum-relevante Aktionskategorie. */
+function mapPlayType(typeText: string): PlayActionType | null {
+  const s = typeText.toLowerCase();
+  if (/goal/.test(s) && !/overturned|no goal|cancelled|disallow/.test(s)) return "goal";
+  if (/shot on target|save|scored/.test(s)) return "shotOnTarget";
+  if (/shot off target|missed|hit the (bar|post|woodwork)|blocked shot/.test(s))
+    return "shotOffTarget";
+  if (/corner/.test(s)) return "corner";
+  if (/offside/.test(s)) return "offside";
+  if (/foul/.test(s)) return "foul";
+  if (/card/.test(s)) return "card";
+  return null;
+}
+
+/**
+ * Play-by-Play eines Spiels als momentum-relevante Aktionen aus dem
+ * ESPN-`commentary`. Jede Aktion trägt Minute, Typ und – über `play.team`
+ * bzw. den Freistoß-Text – eine echte Team-Zuordnung (Heim/Auswärts).
+ * Das ist die reale Datenbasis für `deriveMomentum` (statt Toren + Rauschen).
+ */
+export async function fetchMatchPlays(eventId: string): Promise<PlayAction[]> {
+  const data: Json = await getJson(`${SCOREBOARD}/summary?event=${eventId}`);
+  const comps: Json[] = data?.header?.competitions?.[0]?.competitors ?? [];
+  const home = comps.find((c) => c?.homeAway === "home");
+  const away = comps.find((c) => c?.homeAway === "away");
+  const homeId = String(home?.team?.id ?? home?.id ?? "");
+  const awayId = String(away?.team?.id ?? away?.id ?? "");
+
+  const names: { side: "home" | "away"; name: string }[] = [];
+  for (const [side, c] of [["home", home], ["away", away]] as const) {
+    for (const n of [c?.team?.displayName, c?.team?.name, c?.team?.shortDisplayName]) {
+      if (n) names.push({ side, name: String(n).toLowerCase() });
+    }
+  }
+  const sideById = (id: string): "home" | "away" | null =>
+    id && id === homeId ? "home" : id && id === awayId ? "away" : null;
+  const sideByName = (raw: string): "home" | "away" | null =>
+    names.find((x) => x.name === raw.trim().toLowerCase())?.side ?? null;
+
+  const plays: PlayAction[] = [];
+  for (const c of (data?.commentary ?? []) as Json[]) {
+    const play = c?.play;
+    const type = mapPlayType(String(play?.type?.text ?? ""));
+    if (!type) continue;
+
+    const side =
+      sideById(String(play?.team?.id ?? "")) ??
+      sideByName(String(play?.team?.displayName ?? ""));
+    if (!side) continue;
+
+    const clockValue = Number(play?.clock?.value);
+    const minute = Number.isFinite(clockValue)
+      ? Math.max(1, Math.round(clockValue / 60))
+      : parseInt(String(play?.clock?.displayValue ?? c?.time?.displayValue ?? ""), 10);
+    if (!Number.isFinite(minute) || minute <= 0) continue;
+
+    plays.push({ minute, type, team: side });
+  }
+  return plays.sort((a, b) => a.minute - b.minute);
 }
 
 /* --------------------------- News ---------------------------------- */

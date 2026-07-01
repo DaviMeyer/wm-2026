@@ -1,4 +1,4 @@
-import type { GoalEvent, Match, MomentumPoint, Venue } from "../data/wm";
+import type { GoalEvent, Match, MomentumPoint, PlayAction, PlayActionType, Venue } from "../data/wm";
 
 /** Klassen-Joiner (leichtgewichtige clsx-Alternative). */
 export function cn(...parts: (string | false | null | undefined)[]): string {
@@ -6,17 +6,63 @@ export function cn(...parts: (string | false | null | undefined)[]): string {
 }
 
 /**
- * Schätzt ein "Attack Momentum" aus echten Spieldaten – die ESPN-API liefert
- * keine fertige Momentum-Kurve. Tore erzeugen zeitlich lokalisierte Wellen
- * Richtung erzielendem Team, der Ballbesitz gibt eine konstante Grundtendenz,
- * dezentes deterministisches Rauschen macht die Kurve lebendig. Das Ergebnis
- * ist bewusst eine Schätzung (im Chart als solche gekennzeichnet).
+ * Gewicht einer Einzelaktion fürs Momentum. Torgefahr zählt am stärksten,
+ * Ballbesitz-/Territoriumssignale (Ecke, Offside) weniger, Fouls/Karten
+ * bremsen minimal (Spielunterbrechung, kein Angriffsdruck).
  */
-export function deriveMomentum(goals: GoalEvent[], match: Match): MomentumPoint[] {
-  const lastGoal = goals.reduce((mx, g) => Math.max(mx, g.minute), 0);
-  const baseMinute = match.status === "live" && match.minute ? match.minute : 90;
-  const upTo = Math.min(120, Math.max(baseMinute, lastGoal, 1));
+const ACTION_WEIGHT: Record<PlayActionType, number> = {
+  goal: 60,
+  shotOnTarget: 26,
+  shotOffTarget: 14,
+  corner: 10,
+  offside: 6,
+  foul: 3,
+  card: 4,
+  other: 0,
+};
 
+/**
+ * Berechnet das "Attack Momentum" aus echtem ESPN-Play-by-Play. Jede reale
+ * Aktion (Schuss, Ecke, Tor, Foul …) erzeugt eine zeitlich lokalisierte Welle
+ * Richtung ausführendem Team; die gewichtete Summe pro Minute ergibt die Kurve.
+ * Kein künstliches Rauschen – die Ausschläge stammen ausschließlich aus echten
+ * Ereignissen.
+ *
+ * Fallback: Liegen (noch) keine Plays vor, wird aus Toren + Ballbesitz
+ * geschätzt (grobe Näherung, bis das Play-by-Play geladen ist).
+ */
+export function deriveMomentum(match: Match, plays?: PlayAction[]): MomentumPoint[] {
+  const goals = match.goals ?? [];
+  const lastGoal = goals.reduce((mx, g) => Math.max(mx, g.minute), 0);
+  const lastPlay = (plays ?? []).reduce((mx, p) => Math.max(mx, p.minute), 0);
+  const baseMinute = match.status === "live" && match.minute ? match.minute : 90;
+  const upTo = Math.min(120, Math.max(baseMinute, lastGoal, lastPlay, 1));
+
+  if (plays && plays.length > 0) return momentumFromPlays(plays, upTo);
+  return momentumFromGoals(goals, match, upTo);
+}
+
+/** Momentum aus echten Play-by-Play-Aktionen (bevorzugter Pfad). */
+function momentumFromPlays(plays: PlayAction[], upTo: number): MomentumPoint[] {
+  const points: MomentumPoint[] = [];
+  for (let m = 1; m <= upTo; m++) {
+    let v = 0;
+    for (const p of plays) {
+      const w = ACTION_WEIGHT[p.type];
+      if (w === 0) continue;
+      const sign = p.team === "home" ? 1 : -1;
+      const d = m - p.minute;
+      // Fouls/Karten bremsen die Seite, die sie begeht; Angriffsaktionen treiben an.
+      const dir = p.type === "foul" || p.type === "card" ? -sign : sign;
+      v += dir * w * Math.exp(-(d * d) / 18); // schmale Welle (σ≈3')
+    }
+    points.push({ minute: m, value: Math.max(-95, Math.min(95, Math.round(v))) });
+  }
+  return points;
+}
+
+/** Fallback: grobe Schätzung aus Toren + Ballbesitz (bis Plays geladen sind). */
+function momentumFromGoals(goals: GoalEvent[], match: Match, upTo: number): MomentumPoint[] {
   const poss = match.stats?.possession;
   const baseline = poss ? (poss[0] - poss[1]) * 0.4 : 0; // >0 = Heim am Ball
 
@@ -28,7 +74,6 @@ export function deriveMomentum(goals: GoalEvent[], match: Match): MomentumPoint[
       const d = m - g.minute;
       v += sign * 78 * Math.exp(-(d * d) / 98); // Welle um die Tor-Minute (σ≈7')
     }
-    v += (((m * 7919) % 23) - 11) * 0.55; // deterministisches Rauschen
     points.push({ minute: m, value: Math.max(-95, Math.min(95, Math.round(v))) });
   }
   return points;

@@ -2,9 +2,9 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { AnimatePresence, motion, type Variants } from "framer-motion";
 import { ArrowLeft, BrainCircuit, Goal, Info, SearchX, UserCheck } from "lucide-react";
-import type { GoalEvent, Match } from "../data/wm";
+import type { GoalEvent, Match, PlayAction } from "../data/wm";
 import { teamByCode } from "../data/wm";
-import { useMatch } from "../lib/useWmData";
+import { useMatch, useMatchPlays } from "../lib/useWmData";
 import { Card, LiveBadge, Pill, Skeleton, StatBar, TeamCrest } from "../components/ui";
 import { VenueCard } from "../components/VenueCard";
 import { AIPredictionCard } from "../components/ai/AIPredictionCard";
@@ -179,13 +179,14 @@ function MatchHeader({ match }: { match: Match }) {
   );
 }
 
-function OverviewTab({ match }: { match: Match }) {
+function OverviewTab({ match, plays }: { match: Match; plays: PlayAction[] }) {
   const home = teamByCode(match.homeCode);
   const away = teamByCode(match.awayCode);
 
-  // Attack Momentum aus echten Toren + Ballbesitz geschätzt – die ESPN-API
-  // liefert keine Momentum-Zeitreihe (im Chart als Schätzung gekennzeichnet).
-  const momentum = useMemo(() => deriveMomentum(match.goals ?? [], match), [match]);
+  // Attack Momentum aus echtem ESPN-Play-by-Play (Schüsse, Ecken, Fouls …).
+  // Solange die Aktionen noch nicht geladen sind, greift der Toren-Fallback.
+  const hasPlays = plays.length > 0;
+  const momentum = useMemo(() => deriveMomentum(match, plays), [match, plays]);
 
   if (match.status === "upcoming") {
     return (
@@ -221,7 +222,7 @@ function OverviewTab({ match }: { match: Match }) {
           momentum={momentum}
           homeName={home.name}
           awayName={away.name}
-          estimated
+          estimated={!hasPlays}
         />
       </Card>
       <Card className="p-5 lg:col-span-2">
@@ -282,6 +283,7 @@ export default function MatchCenter() {
   const { id } = useParams();
   const [tab, setTab] = useState<TabId>("uebersicht");
   const { match, loading } = useMatch(id);
+  const { plays } = useMatchPlays(id, match?.status);
 
   // Beim Wechsel auf ein anderes Spiel wieder mit der Übersicht starten.
   useEffect(() => setTab("uebersicht"), [id]);
@@ -359,7 +361,7 @@ export default function MatchCenter() {
             exit={{ opacity: 0, y: -6 }}
             transition={{ duration: 0.2, ease: "easeOut" }}
           >
-            {tab === "uebersicht" && <OverviewTab match={match} />}
+            {tab === "uebersicht" && <OverviewTab match={match} plays={plays} />}
             {tab === "verlauf" && <MatchTimeline match={match} />}
             {tab === "aufstellung" && <PitchLineups match={match} />}
             {tab === "statistik" && (

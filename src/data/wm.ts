@@ -64,6 +64,28 @@ export interface GoalEvent {
   ownGoal?: boolean; // Eigentor
 }
 
+/**
+ * Einzelaktion aus dem ESPN-Play-by-Play (`commentary`) – Basis für das
+ * Attack Momentum. Anders als GoalEvent/MatchEvent deckt PlayAction ALLE
+ * momentum-relevanten Aktionen ab (Schüsse, Ecken, Fouls, Offside …), jeweils
+ * mit Minute und echter Team-Zuordnung aus der API.
+ */
+export type PlayActionType =
+  | "goal"
+  | "shotOnTarget"
+  | "shotOffTarget"
+  | "corner"
+  | "offside"
+  | "foul"
+  | "card"
+  | "other";
+
+export interface PlayAction {
+  minute: number; // Spielminute aus play.clock
+  type: PlayActionType;
+  team: "home" | "away";
+}
+
 /** Einzelereignis aus dem Spielverlauf (für den Live-Zeitstrahl). */
 export type MatchEventType = "goal" | "yellow" | "red" | "yellowred" | "sub" | "foul";
 

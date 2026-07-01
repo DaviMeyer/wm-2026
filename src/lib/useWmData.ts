@@ -15,11 +15,13 @@ import {
   type MatchEvent,
   type MatchStatus,
   type NewsItem,
+  type PlayAction,
   type StandingRow,
 } from "../data/wm";
 import {
   fetchMatchDetails,
   fetchMatchEvents,
+  fetchMatchPlays,
   fetchMatches,
   fetchNews,
   fetchStandings,
@@ -314,4 +316,49 @@ export function useMatchEvents(
   }, [id, status]);
 
   return { events, loading };
+}
+
+/* --------------------- Attack Momentum (Play-by-Play) -------------- */
+
+/**
+ * Echtes Play-by-Play eines Spiels (Schüsse, Ecken, Fouls …) aus dem
+ * ESPN-`commentary` – Datenbasis für das Attack Momentum. Bei Live-Spielen
+ * alle 60 s aktualisiert. Nur im Live-Modus für laufende/beendete Spiele.
+ */
+export function useMatchPlays(
+  id: string | undefined,
+  status: MatchStatus | undefined
+): { plays: PlayAction[]; loading: boolean } {
+  const [plays, setPlays] = useState<PlayAction[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!id || status === undefined || status === "upcoming" || store.source !== "live") {
+      setPlays([]);
+      setLoading(false);
+      return;
+    }
+    let cancelled = false;
+    const load = (initial: boolean) => {
+      if (initial) setLoading(true);
+      fetchMatchPlays(id)
+        .then((ps) => {
+          if (!cancelled) setPlays(ps);
+        })
+        .catch(() => {
+          if (!cancelled && initial) setPlays([]);
+        })
+        .finally(() => {
+          if (!cancelled && initial) setLoading(false);
+        });
+    };
+    load(true);
+    const timer = status === "live" ? setInterval(() => load(false), 60_000) : undefined;
+    return () => {
+      cancelled = true;
+      if (timer) clearInterval(timer);
+    };
+  }, [id, status]);
+
+  return { plays, loading };
 }

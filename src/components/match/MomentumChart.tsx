@@ -58,7 +58,7 @@ export function MomentumChart({
   homeName: string;
   awayName: string;
   className?: string;
-  /** true = aus Toren & Ballbesitz geschätzt (kein echtes Live-Momentum). */
+  /** true = Toren-/Ballbesitz-Fallback (Play-by-Play noch nicht geladen). */
   estimated?: boolean;
 }) {
   // Recharts braucht feste Farb-Props. useTheme triggert ein Re-Render bei
@@ -126,11 +126,11 @@ export function MomentumChart({
         </ResponsiveContainer>
       </div>
 
-      {estimated && (
-        <p className="mt-2 text-[11px] leading-snug text-zinc-600">
-          Geschätzt aus Toren &amp; Ballbesitz – die Datenquelle liefert kein Live-Momentum.
-        </p>
-      )}
+      <p className="mt-2 text-[11px] leading-snug text-zinc-600">
+        {estimated
+          ? "Vorläufig aus Toren & Ballbesitz geschätzt – detaillierter Spielverlauf wird geladen."
+          : "Berechnet aus dem echten Spielverlauf (Schüsse, Ecken, Fouls) der Datenquelle."}
+      </p>
     </div>
   );
 }
