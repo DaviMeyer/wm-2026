@@ -1,6 +1,6 @@
 import { Suspense, lazy, useEffect, useLayoutEffect } from "react";
 import { Link, NavLink, Route, Routes, useLocation } from "react-router-dom";
-import { AnimatePresence, motion } from "framer-motion";
+import { motion } from "framer-motion";
 import { CalendarDays, Compass, LayoutGrid, ListOrdered, Trophy, Radio } from "lucide-react";
 import { liveOf, useWmData } from "./lib/useWmData";
 import { Skeleton } from "./components/ui";
@@ -150,28 +150,31 @@ export default function App() {
       </a>
       <Navbar />
       <main id="main-content" className="mx-auto max-w-6xl px-3 pb-16 pt-24 sm:px-4 sm:pt-28">
-        {/* Suspense bewusst AUSSERHALB der gekeyten motion.div: so kann ein noch
-            nicht geladener Lazy-Chunk die Exit-Animation nicht blockieren
-            (verhindert das gelegentliche „Einfrieren" beim Zurück-Navigieren). */}
+        {/* BEWUSST KEINE AnimatePresence auf Seitenebene: eine reine, per key
+            getriggerte Enter-Animation genügt. AnimatePresence mode="wait" musste
+            beim Zurück-Navigieren auf das Exit der alten Seite warten – enthielt
+            diese eine VERSCHACHTELTE AnimatePresence (z. B. die Match-Center-Tabs)
+            mit einem hängenden Exit-Promise, wurde onExitComplete nie ausgelöst und
+            die neue Route nie gemountet → schwarzer Screen. Ohne Seiten-Exit-
+            Koordination ist dieser Hänger strukturell unmöglich (und der Wechsel
+            wirkt zugleich direkter). Der key remountet die Seite und spielt die
+            Enter-Animation; React unmountet die alte Seite sofort. */}
         <Suspense fallback={<PageFallback />}>
-          <AnimatePresence mode="wait" initial={false}>
-            <motion.div
-              key={location.pathname}
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              transition={{ duration: 0.25, ease: "easeOut" }}
-            >
-              <Routes location={location}>
-                <Route path="/" element={<Dashboard />} />
-                <Route path="/spielplan" element={<Schedule />} />
-                <Route path="/match/:id" element={<MatchCenter />} />
-                <Route path="/tabellen" element={<Standings />} />
-                <Route path="/ko" element={<Bracket />} />
-                <Route path="*" element={<NotFound />} />
-              </Routes>
-            </motion.div>
-          </AnimatePresence>
+          <motion.div
+            key={location.pathname}
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.25, ease: "easeOut" }}
+          >
+            <Routes location={location}>
+              <Route path="/" element={<Dashboard />} />
+              <Route path="/spielplan" element={<Schedule />} />
+              <Route path="/match/:id" element={<MatchCenter />} />
+              <Route path="/tabellen" element={<Standings />} />
+              <Route path="/ko" element={<Bracket />} />
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </motion.div>
         </Suspense>
       </main>
       <footer className="border-t border-line px-4 py-6 text-center text-xs text-zinc-600">
