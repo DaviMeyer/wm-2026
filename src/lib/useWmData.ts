@@ -133,6 +133,9 @@ async function refreshScores(): Promise<void> {
             referee: old.referee ?? m.referee,
             attendance: old.attendance ?? m.attendance,
             officials: old.officials ?? m.officials,
+            // Prognose über den Statuswechsel (upcoming -> live -> beendet)
+            // hinweg bewahren; das Scoreboard liefert nach Anstoß keine Quoten.
+            prediction: old.prediction ?? m.prediction,
           }
         : m;
     });
@@ -296,6 +299,9 @@ export function useMatch(id: string | undefined): { match: Match | undefined; lo
                 referee: details.referee ?? m.referee,
                 attendance: details.attendance ?? m.attendance,
                 officials: details.officials ?? m.officials,
+                // Vor-Anstoß-Prognose auch bei laufenden/beendeten Spielen
+                // beibehalten (Scoreboard liefert dafür keine Quoten mehr).
+                prediction: m.prediction ?? details.prediction,
               }
             : m;
         setStore({

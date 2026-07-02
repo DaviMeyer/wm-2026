@@ -27,6 +27,11 @@ export function AITacticalSummary({
       <h3 className="flex items-center gap-2 font-display text-sm font-extrabold uppercase tracking-wider text-zinc-100">
         <BrainCircuit className="h-4 w-4 text-azure-400" aria-hidden="true" />
         Markteinschätzung
+        {match.status !== "upcoming" && (
+          <span className="font-sans text-[10px] font-medium normal-case tracking-normal text-zinc-500">
+            · vor Anstoß
+          </span>
+        )}
       </h3>
       <p className="mt-3 max-w-prose text-sm leading-relaxed text-zinc-300">
         {prediction.tacticalSummary}

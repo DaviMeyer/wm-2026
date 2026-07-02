@@ -540,6 +540,12 @@ export interface MatchDetails {
   referee?: string;
   attendance?: number;
   officials?: { name: string; role: string }[];
+  /**
+   * Vor-Anstoß-Markt-Prognose aus dem Summary (pickcenter/odds). Anders als das
+   * Scoreboard liefert der Summary-Endpoint die Quoten auch nach Anstoß noch,
+   * sodass die Prognose bei laufenden/beendeten Spielen erhalten bleibt.
+   */
+  prediction?: Prediction;
 }
 
 /** ESPN-Offiziellen-Rolle eindeutschen. „Assistant" vor „Referee" prüfen. */
@@ -667,12 +673,24 @@ export async function fetchMatchDetails(eventId: string): Promise<MatchDetails> 
 
   const attendance = num(data?.gameInfo?.attendance) || undefined;
 
+  // Vor-Anstoß-Prognose aus den (auch nachträglich verfügbaren) Summary-Quoten
+  // rekonstruieren – DraftKings-Struktur in pickcenter[0]/odds[0] entspricht der
+  // Scoreboard-Struktur, daher greift predictionFromOdds unverändert.
+  const oddsObj = data?.pickcenter?.[0] ?? data?.odds?.[0];
+  let prediction: Prediction | undefined;
+  if (oddsObj) {
+    const nameOf = (box: Json) =>
+      teamByCode(String(box?.team?.abbreviation ?? "").toUpperCase()).name;
+    prediction = predictionFromOdds(oddsObj, nameOf(homeBox), nameOf(awayBox));
+  }
+
   return {
     stats: homeBox && awayBox ? mapStats(homeBox, awayBox) : undefined,
     lineups: homeLineup && awayLineup ? { home: homeLineup, away: awayLineup } : undefined,
     referee: ref?.displayName ?? ref?.fullName ?? undefined,
     attendance,
     officials: officials.length > 0 ? officials : undefined,
+    prediction,
   };
 }
 
