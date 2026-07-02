@@ -6,6 +6,7 @@ import { ChevronsLeftRight, Trophy } from "lucide-react";
 import { teamByCode } from "../data/wm";
 import type { Match, MatchRound, MatchStatus, StandingRow } from "../data/wm";
 import { ErrorState, Pill, Skeleton, TeamCrest } from "../components/ui";
+import { Confetti } from "../components/fx/Confetti";
 import { retry, useSchedule, useWmData } from "../lib/useWmData";
 import { cn } from "../lib/utils";
 
@@ -257,6 +258,18 @@ function MatchCard({ match, isFinal = false }: { match: BracketMatch; isFinal?: 
   const decided = match.status === "finished";
   const isLive = match.status === "live";
 
+  // Weltmeister-Krönung: Konfetti im entschiedenen Finale (Farben des Siegers).
+  const winnerSlot =
+    match.home.kind === "team" && match.home.advanced
+      ? match.home
+      : match.away.kind === "team" && match.away.advanced
+        ? match.away
+        : null;
+  const championColors =
+    isFinal && decided && winnerSlot?.kind === "team"
+      ? teamByCode(winnerSlot.code).colors
+      : null;
+
   // Statuszeile oben links: Live-Minute, „Beendet", Anstoßdatum oder Spielnummer
   const label = isLive
     ? `${match.minute ?? ""}′`.trim() || "Live"
@@ -270,6 +283,9 @@ function MatchCard({ match, isFinal = false }: { match: BracketMatch; isFinal?: 
 
   const inner = (
     <>
+      {championColors && (
+        <Confetti burstKey="champion" colors={[championColors[0], championColors[1], "#fbbf24"]} />
+      )}
       <div className="mb-2 flex items-center justify-between">
         {isLive ? (
           <span className="flex items-center gap-1 font-mono text-[10px] font-bold uppercase tracking-wider text-volt-400">
@@ -303,7 +319,7 @@ function MatchCard({ match, isFinal = false }: { match: BracketMatch; isFinal?: 
   );
 
   const className = cn(
-    "card block p-3 transition-colors duration-200",
+    "card relative block overflow-hidden p-3 transition-colors duration-200",
     isFinal
       ? "border-gold-400/40 bg-gradient-to-b from-gold-400/10 to-transparent hover:border-gold-400/70"
       : "hover:border-pitch-700",

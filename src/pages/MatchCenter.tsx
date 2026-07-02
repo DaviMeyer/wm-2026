@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { AnimatePresence, motion, type Variants } from "framer-motion";
-import { ArrowLeft, BrainCircuit, Goal, Info, SearchX, UserCheck } from "lucide-react";
+import { ArrowLeft, BrainCircuit, Goal, Info, SearchX, UserCheck, Users } from "lucide-react";
 import type { GoalEvent, Match, PlayAction } from "../data/wm";
 import { teamByCode } from "../data/wm";
 import { useMatch, useMatchPlays } from "../lib/useWmData";
@@ -13,6 +13,9 @@ import { MomentumChart } from "../components/match/MomentumChart";
 import { PitchLineups } from "../components/match/PitchLineups";
 import { MatchStatsPanel } from "../components/match/MatchStatsPanel";
 import { MatchTimeline } from "../components/match/MatchTimeline";
+import { ScoreFlip } from "../components/match/ScoreFlip";
+import { Confetti } from "../components/fx/Confetti";
+import { usePrevious } from "../lib/hooks";
 import { cn, deriveMomentum, formatDate, kickoffUser } from "../lib/utils";
 
 /* ---------------------------------------------------------------- */
@@ -95,7 +98,7 @@ function ScorerList({ goals }: { goals: GoalEvent[] }) {
     <div className="mt-5 grid grid-cols-2 gap-x-4 border-t border-line pt-4 text-sm sm:gap-x-8">
       <ul className="space-y-1.5">
         {home.map((g, i) => (
-          <li key={`h-${i}`} className="flex items-center justify-end gap-1.5">
+          <li key={`h-${g.minute}-${g.scorer}-${i}`} className="flex items-center justify-end gap-1.5">
             <span className="truncate text-zinc-300">
               {g.scorer}
               <span className="text-zinc-500">{tagOf(g)}</span>
@@ -107,7 +110,7 @@ function ScorerList({ goals }: { goals: GoalEvent[] }) {
       </ul>
       <ul className="space-y-1.5">
         {away.map((g, i) => (
-          <li key={`a-${i}`} className="flex items-center justify-start gap-1.5">
+          <li key={`a-${g.minute}-${g.scorer}-${i}`} className="flex items-center justify-start gap-1.5">
             <Goal className="h-3.5 w-3.5 shrink-0 text-azure-400" aria-hidden="true" />
             <span className="shrink-0 font-mono text-xs text-zinc-500">{g.clockLabel}</span>
             <span className="truncate text-zinc-300">
@@ -122,8 +125,26 @@ function ScorerList({ goals }: { goals: GoalEvent[] }) {
 }
 
 function MatchHeader({ match }: { match: Match }) {
+  const total = (match.homeScore ?? 0) + (match.awayScore ?? 0);
+  const prevTotal = usePrevious(total);
+  const [burst, setBurst] = useState(0);
+  useEffect(() => {
+    if (match.status === "live" && prevTotal !== undefined && total > prevTotal) {
+      setBurst((b) => b + 1);
+    }
+  }, [total, prevTotal, match.status]);
+
+  const home = teamByCode(match.homeCode);
+  const away = teamByCode(match.awayCode);
+
   return (
-    <Card className="p-5 sm:p-8">
+    <Card className="relative overflow-hidden p-5 sm:p-8">
+      {burst > 0 && (
+        <Confetti
+          burstKey={burst}
+          colors={[home.colors[0], away.colors[0], home.colors[1], away.colors[1]]}
+        />
+      )}
       <div className="flex items-center justify-between gap-3">
         <span className="label-caps">
           {match.group ? `Gruppe ${match.group} · Gruppenphase` : "WM 2026"}
@@ -150,9 +171,9 @@ function MatchHeader({ match }: { match: Match }) {
           ) : (
             <>
               <p className="display-num text-4xl text-zinc-50 sm:text-6xl md:text-8xl">
-                {match.homeScore}
+                <ScoreFlip value={match.homeScore ?? 0} />
                 <span className="mx-1 text-zinc-600 sm:mx-2">:</span>
-                {match.awayScore}
+                <ScoreFlip value={match.awayScore ?? 0} />
               </p>
               {match.status === "finished" && (
                 <p className="mt-1 text-xs text-zinc-500">{formatDate(match.kickoff)}</p>
@@ -168,11 +189,24 @@ function MatchHeader({ match }: { match: Match }) {
         <ScorerList goals={match.goals} />
       )}
 
-      {match.referee && (
-        <div className="mt-6 flex flex-wrap items-center justify-center gap-x-2 gap-y-1 border-t border-line pt-4">
-          <UserCheck className="h-4 w-4 text-zinc-500" aria-hidden="true" />
-          <span className="label-caps">Schiedsrichter</span>
-          <span className="font-mono text-sm text-zinc-300">{match.referee}</span>
+      {(match.referee || (match.attendance ?? 0) > 0) && (
+        <div className="mt-6 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 border-t border-line pt-4">
+          {(match.attendance ?? 0) > 0 && (
+            <span className="flex items-center gap-2">
+              <Users className="h-4 w-4 text-zinc-500" aria-hidden="true" />
+              <span className="label-caps">Zuschauer</span>
+              <span className="font-mono text-sm text-zinc-300">
+                {match.attendance!.toLocaleString("de-DE")}
+              </span>
+            </span>
+          )}
+          {match.referee && (
+            <span className="flex items-center gap-2">
+              <UserCheck className="h-4 w-4 text-zinc-500" aria-hidden="true" />
+              <span className="label-caps">Schiedsrichter</span>
+              <span className="font-mono text-sm text-zinc-300">{match.referee}</span>
+            </span>
+          )}
         </div>
       )}
     </Card>

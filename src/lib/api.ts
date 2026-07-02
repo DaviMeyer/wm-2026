@@ -158,6 +158,13 @@ function placeholderTeam(apiTeam: Json): { code: string; short: string; name: st
   return null;
 }
 
+/** Echtes Länder-Wappen aus ESPN: scoreboard `team.logo` oder standings `team.logos[0].href`. */
+function logoUrl(apiTeam: Json): string | undefined {
+  const direct = typeof apiTeam?.logo === "string" ? apiTeam.logo : undefined;
+  const fromArr = typeof apiTeam?.logos?.[0]?.href === "string" ? apiTeam.logos[0].href : undefined;
+  return direct ?? fromArr;
+}
+
 function ensureTeam(apiTeam: Json): string {
   const placeholder = placeholderTeam(apiTeam);
   if (placeholder) {
@@ -178,6 +185,7 @@ function ensureTeam(apiTeam: Json): string {
     name: GERMAN_NAMES[code] ?? apiTeam?.displayName ?? code,
     colors: c1 ? [c1, c2 ?? "#27272e"] : undefined,
     rating: RATING_HINTS[code],
+    logo: logoUrl(apiTeam),
   });
   return code;
 }
@@ -252,6 +260,25 @@ function sideProb(odds: Json, side: "home" | "away" | "draw"): number | undefine
 }
 
 /** Prognose aus echten Buchmacher-Quoten (DraftKings via ESPN). */
+/** Über/Unter-Linie (erwartete Gesamttore) aus den ESPN-Quoten. */
+function overUnderFromOdds(odds: Json): number | undefined {
+  const v = Number(odds?.overUnder ?? odds?.total?.over?.close?.line ?? odds?.total?.over?.open?.line);
+  return Number.isFinite(v) && v > 0 ? v : undefined;
+}
+
+/** Handicap: das Team mit negativer Spread-Linie ist der Buchmacher-Favorit. */
+function spreadFromOdds(odds: Json, homeName: string, awayName: string): Prediction["spread"] {
+  const line = (side: "home" | "away") =>
+    odds?.pointSpread?.[side]?.close?.line ?? odds?.pointSpread?.[side]?.open?.line;
+  const homeLine = line("home");
+  const awayLine = line("away");
+  const hl = parseFloat(String(homeLine));
+  const al = parseFloat(String(awayLine));
+  if (Number.isFinite(hl) && hl < 0) return { teamName: homeName, line: String(homeLine) };
+  if (Number.isFinite(al) && al < 0) return { teamName: awayName, line: String(awayLine) };
+  return undefined;
+}
+
 function predictionFromOdds(odds: Json, homeName: string, awayName: string): Prediction | undefined {
   const h = sideProb(odds, "home");
   const d = sideProb(odds, "draw");
@@ -259,25 +286,43 @@ function predictionFromOdds(odds: Json, homeName: string, awayName: string): Pre
   if (h === undefined || a === undefined) return undefined;
   const dd = d ?? Math.max(0.05, 1 - h - a);
   const sum = h + dd + a;
-  const home = Math.round((h / sum) * 100);
-  const away = Math.round((a / sum) * 100);
-  const draw = Math.max(0, 100 - home - away);
-  const fav = home >= away ? homeName : awayName;
+  let home = Math.round((h / sum) * 100);
+  let away = Math.round((a / sum) * 100);
+  let draw = Math.round((dd / sum) * 100);
+  // Rundungsrest auf den größten Posten legen, damit die Summe exakt 100 ergibt
+  // (sonst kann draw als reiner Rest stark verzerren).
+  const rest = 100 - (home + draw + away);
+  if (rest !== 0) {
+    const mx = Math.max(home, draw, away);
+    if (mx === home) home += rest;
+    else if (mx === away) away += rest;
+    else draw += rest;
+  }
+  const tie = home === away;
+  const fav = home > away ? homeName : awayName;
   const favPct = Math.max(home, away);
+  const overUnder = overUnderFromOdds(odds);
+  const spread = spreadFromOdds(odds, homeName, awayName);
   return {
     home,
     draw,
     away,
     confidence: favPct >= 60 ? "hoch" : favPct >= 45 ? "mittel" : "niedrig",
+    overUnder,
+    spread,
     keyFactors: [
       `Marktbasiertes Modell: Quoten von ${odds?.provider?.name ?? "Buchmachern"} in Wahrscheinlichkeiten umgerechnet`,
-      `${fav} wird mit ${favPct} % als Favorit eingestuft`,
+      tie
+        ? `Ausgeglichenes Duell – beide Teams bei ${favPct} %`
+        : `${fav} wird mit ${favPct} % als Favorit eingestuft`,
       `Remis-Wahrscheinlichkeit: ${draw} %`,
     ],
-    tacticalSummary:
-      `Das Modell sieht ${fav} vorn (${favPct} %). ` +
-      `Je länger die Partie torlos bleibt, desto stärker steigt der Remis-Anteil von aktuell ${draw} % – ` +
-      `der Außenseiter wird tief verteidigen und auf Standards sowie Umschaltmomente setzen.`,
+    tacticalSummary: tie
+      ? `Der Markt sieht ein offenes Duell (je ${favPct} %). ` +
+        `Die Remis-Wahrscheinlichkeit liegt bei ${draw} %; Standards und Umschaltmomente dürften den Ausschlag geben.`
+      : `Das Modell sieht ${fav} vorn (${favPct} %). ` +
+        `Je länger die Partie torlos bleibt, desto stärker steigt der Remis-Anteil von aktuell ${draw} % – ` +
+        `der Außenseiter wird tief verteidigen und auf Standards sowie Umschaltmomente setzen.`,
   };
 }
 
@@ -326,7 +371,10 @@ function mapGoals(comp: Json, homeId: string, awayId: string): GoalEvent[] {
       scorer,
     });
   }
-  return goals.sort((a, b) => a.minute - b.minute);
+  // Nachspielzeit als Zweitschlüssel: 45' vor 45+3', 90' vor 90+2'. Beide tragen
+  // dieselbe Basisminute, sonst stünde das spätere Tor evtl. zuerst.
+  const stoppage = (label: string) => Number(label.match(/\+(\d+)/)?.[1] ?? 0);
+  return goals.sort((a, b) => a.minute - b.minute || stoppage(a.clockLabel) - stoppage(b.clockLabel));
 }
 
 function mapEvent(ev: Json): Match | null {
@@ -430,6 +478,16 @@ export interface LiveStandings {
   groupOfTeam: Record<string, string>;
 }
 
+/** ESPN-note.description (Qualifikationsstatus) eindeutschen. */
+function germanizeQual(desc: unknown): string | undefined {
+  const s = String(desc ?? "").toLowerCase();
+  if (!s) return undefined;
+  if (s.includes("eliminat")) return "Ausgeschieden";
+  if (s.includes("best") && s.includes("advance")) return "Bester Gruppendritter (mögl.)";
+  if (s.includes("advance") || s.includes("qualif")) return "Weiter in die K.-o.-Runde";
+  return String(desc);
+}
+
 export async function fetchStandings(): Promise<LiveStandings> {
   const data: Json = await getJson(`${STANDINGS_URL}?season=2026`);
   const table: Record<string, StandingRow[]> = {};
@@ -443,10 +501,13 @@ export async function fetchStandings(): Promise<LiveStandings> {
 
     for (const entry of child?.standings?.entries ?? []) {
       const code = ensureTeam(entry.team);
-      const stat = (name: string) =>
-        num((entry.stats ?? []).find((s: Json) => s?.name === name)?.value);
+      const statObj = (name: string) => (entry.stats ?? []).find((s: Json) => s?.name === name);
+      const stat = (name: string) => num(statObj(name)?.value);
       registerTeam({ code, group });
       groupOfTeam[code] = group;
+      const pd = statObj("pointDifferential");
+      const rc = statObj("rankChange");
+      const note = entry.note;
       rows.push({
         teamCode: code,
         played: stat("gamesPlayed"),
@@ -457,6 +518,10 @@ export async function fetchStandings(): Promise<LiveStandings> {
         goalsAgainst: stat("pointsAgainst"),
         points: stat("points"),
         rank: stat("rank") || undefined,
+        goalDiff: pd ? num(pd.value ?? pd.displayValue) : undefined,
+        rankChange: rc ? num(rc.value) : undefined,
+        qualColor: typeof note?.color === "string" ? note.color : undefined,
+        qualLabel: germanizeQual(note?.description),
       });
     }
     rows.sort((a, b) => (a.rank ?? 99) - (b.rank ?? 99));
@@ -473,6 +538,18 @@ export interface MatchDetails {
   stats?: MatchStats;
   lineups?: { home: Lineup; away: Lineup };
   referee?: string;
+  attendance?: number;
+  officials?: { name: string; role: string }[];
+}
+
+/** ESPN-Offiziellen-Rolle eindeutschen. „Assistant" vor „Referee" prüfen. */
+function germanRole(role: string): string {
+  const r = role.toLowerCase();
+  if (r.includes("var") || r.includes("video")) return "Video-Assistent";
+  if (r.includes("fourth") || r.includes("4th")) return "Vierter Offizieller";
+  if (r.includes("assistant")) return "Assistent";
+  if (r.includes("referee")) return "Schiedsrichter";
+  return role || "Offizieller";
 }
 
 /** Statistik-Namen der ESPN-Boxscore → unser Modell. */
@@ -501,11 +578,19 @@ function mapStats(homeTeam: Json, awayTeam: Json): MatchStats | undefined {
     possession: pair("possessionPct"),
     shots: pair("totalShots"),
     shotsOnTarget: pair("shotsOnTarget"),
+    blockedShots: pair("blockedShots"),
     passes: pair("totalPasses"),
     passAccuracy: passAccuracy(),
+    crosses: pair("totalCrosses"),
     corners: pair("wonCorners"),
+    offsides: pair("offsides"),
+    tackles: pair("totalTackles"),
+    interceptions: pair("interceptions"),
+    clearances: pair("totalClearance"),
+    saves: pair("saves"),
     fouls: pair("foulsCommitted"),
     yellowCards: pair("yellowCards"),
+    redCards: pair("redCards"),
   };
   return Object.values(stats).some((v) => v !== undefined) ? stats : undefined;
 }
@@ -550,9 +635,10 @@ function buildLineup(rosterEntry: Json): Lineup | undefined {
     }))
   );
 
-  const formation =
-    String(rosterEntry?.formation ?? "") ||
-    [groups.D.length, groups.M.length, groups.F.length].filter(Boolean).join("-");
+  // Nur die echte ESPN-Formation übernehmen. Aus (evtl. fehlerhaft
+  // gebucketeten) Positionsgruppen eine Formation zu „raten" führte zu
+  // erfundenen Angaben wie „3-6-1" – lieber leer lassen (UI zeigt Fallback).
+  const formation = String(rosterEntry?.formation ?? "").trim();
 
   return { formation, players };
 }
@@ -570,15 +656,23 @@ export async function fetchMatchDetails(eventId: string): Promise<MatchDetails> 
   const homeLineup = homeRoster ? buildLineup(homeRoster) : undefined;
   const awayLineup = awayRoster ? buildLineup(awayRoster) : undefined;
 
-  const officials: Json[] = data?.gameInfo?.officials ?? [];
-  const ref = officials.find((o) =>
-    String(o?.position?.name ?? o?.position?.displayName ?? "").toLowerCase().includes("referee")
-  ) ?? officials[0];
+  const officialsRaw: Json[] = data?.gameInfo?.officials ?? [];
+  const roleText = (o: Json) => String(o?.position?.displayName ?? o?.position?.name ?? "");
+  const ref = officialsRaw.find((o) => /referee/i.test(roleText(o)) && !/assistant/i.test(roleText(o)))
+    ?? officialsRaw.find((o) => /referee/i.test(roleText(o)))
+    ?? officialsRaw[0];
+  const officials = officialsRaw
+    .map((o) => ({ name: String(o?.displayName ?? o?.fullName ?? ""), role: germanRole(roleText(o)) }))
+    .filter((o) => o.name);
+
+  const attendance = num(data?.gameInfo?.attendance) || undefined;
 
   return {
     stats: homeBox && awayBox ? mapStats(homeBox, awayBox) : undefined,
     lineups: homeLineup && awayLineup ? { home: homeLineup, away: awayLineup } : undefined,
     referee: ref?.displayName ?? ref?.fullName ?? undefined,
+    attendance,
+    officials: officials.length > 0 ? officials : undefined,
   };
 }
 

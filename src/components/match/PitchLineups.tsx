@@ -1,8 +1,19 @@
+import { motion, type Variants } from "framer-motion";
 import { Clock3 } from "lucide-react";
 import type { Match, PlayerSlot } from "../../data/wm";
 import { teamByCode } from "../../data/wm";
 import { Card, Skeleton, TeamCrest } from "../ui";
 import { cn } from "../../lib/utils";
+
+/* Gestaffeltes Einlaufen der Elf; Reduced-Motion → framer rendert sofort. */
+const pitchVariants: Variants = {
+  hidden: {},
+  show: { transition: { staggerChildren: 0.03, delayChildren: 0.08 } },
+};
+const playerVariants: Variants = {
+  hidden: { opacity: 0, scale: 0.5 },
+  show: { opacity: 1, scale: 1, transition: { type: "spring", stiffness: 320, damping: 22 } },
+};
 
 /* ---------------------------------------------------------------- */
 /*  Taktisches Spielfeld im FotMob-Stil: beide Elfen auf einem       */
@@ -14,9 +25,12 @@ function PlayerDot({ player, side }: { player: PlayerSlot; side: "home" | "away"
   const top = side === "home" ? 95.5 - player.y * 0.45 : 3.5 + player.y * 0.45;
   const left = side === "home" ? player.x : 100 - player.x;
   return (
-    <div
-      className="absolute flex w-14 -translate-x-1/2 -translate-y-1/2 flex-col items-center sm:w-16"
-      style={{ left: `${left}%`, top: `${top}%` }}
+    <motion.div
+      variants={playerVariants}
+      // Zentrierung über framer-Transform (x/y), damit die animierte scale-
+      // Transform die Positionierung nicht überschreibt.
+      className="absolute flex w-14 flex-col items-center sm:w-16"
+      style={{ left: `${left}%`, top: `${top}%`, x: "-50%", y: "-50%" }}
     >
       <span
         className={cn(
@@ -32,7 +46,7 @@ function PlayerDot({ player, side }: { player: PlayerSlot; side: "home" | "away"
       >
         {player.name}
       </span>
-    </div>
+    </motion.div>
   );
 }
 
@@ -77,10 +91,12 @@ export function PitchLineups({ match, className }: { match: Match; className?: s
           <TeamCrest code={home.code} size="sm" />
           <span className="truncate text-sm font-semibold text-zinc-200">{home.name}</span>
         </span>
-        <span className="font-mono text-sm font-bold text-zinc-300">
-          {lineups.home.formation} <span className="font-medium text-zinc-600">vs</span>{" "}
-          {lineups.away.formation}
-        </span>
+        {(lineups.home.formation || lineups.away.formation) && (
+          <span className="font-mono text-sm font-bold text-zinc-300">
+            {lineups.home.formation || "—"} <span className="font-medium text-zinc-600">vs</span>{" "}
+            {lineups.away.formation || "—"}
+          </span>
+        )}
         <span className="flex min-w-0 items-center gap-2">
           <span className="truncate text-sm font-semibold text-zinc-200">{away.name}</span>
           <TeamCrest code={away.code} size="sm" />
@@ -88,13 +104,16 @@ export function PitchLineups({ match, className }: { match: Match; className?: s
       </div>
 
       {/* Spielfeld */}
-      <div
+      <motion.div
+        variants={pitchVariants}
+        initial="hidden"
+        animate="show"
         className="relative mx-auto aspect-[10/14] w-full max-w-sm overflow-hidden rounded-2xl ring-1 ring-white/10"
         style={{
           background: "linear-gradient(180deg, #0c2417 0%, #123524 48%, #0c2417 100%)",
         }}
         role="group"
-        aria-label={`Aufstellung ${home.name} (${lineups.home.formation}) gegen ${away.name} (${lineups.away.formation})`}
+        aria-label={`Aufstellung ${home.name} gegen ${away.name}`}
       >
         {/* Rasenstreifen */}
         <div
@@ -135,7 +154,7 @@ export function PitchLineups({ match, className }: { match: Match; className?: s
         {lineups.home.players.map((p, i) => (
           <PlayerDot key={`h-${i}-${p.number}`} player={p} side="home" />
         ))}
-      </div>
+      </motion.div>
 
       <p className="mt-4 text-center text-xs text-zinc-500">
         Zahl = Trikotnummer · offizielle Startaufstellung

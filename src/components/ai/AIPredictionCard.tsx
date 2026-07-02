@@ -3,6 +3,7 @@ import { Activity, Sparkles, TrendingUp, Zap } from "lucide-react";
 import type { Match } from "../../data/wm";
 import { teamByCode } from "../../data/wm";
 import { Pill, TeamCrest } from "../ui";
+import { CountUp } from "../../lib/useCountUp";
 import { cn } from "../../lib/utils";
 
 /* ---------------------------------------------------------------- */
@@ -75,7 +76,7 @@ export function AIPredictionCard({
               damit es nicht mit den Rand-Prozenten kollidiert) */}
           <div className="relative mt-2.5 h-6 font-mono text-sm tabular-nums">
             <span className="absolute left-0 top-0 font-semibold text-volt-400">
-              {prediction.home}&nbsp;%
+              <CountUp value={prediction.home} />&nbsp;%
             </span>
             <span
               className="absolute top-0 -translate-x-1/2 whitespace-nowrap text-zinc-400"
@@ -84,10 +85,10 @@ export function AIPredictionCard({
               }}
             >
               <span className="label-caps mr-1.5">Remis</span>
-              {prediction.draw}&nbsp;%
+              <CountUp value={prediction.draw} />&nbsp;%
             </span>
             <span className="absolute right-0 top-0 font-semibold text-azure-400">
-              {prediction.away}&nbsp;%
+              <CountUp value={prediction.away} />&nbsp;%
             </span>
           </div>
 
@@ -116,6 +117,28 @@ export function AIPredictionCard({
             />
           </div>
         </div>
+
+        {/* Zusatzmärkte aus den Buchmacherquoten (falls vorhanden) */}
+        {(prediction.overUnder !== undefined || prediction.spread) && (
+          <div className="mt-4 flex flex-wrap gap-2 border-t border-line pt-4">
+            {prediction.overUnder !== undefined && (
+              <span className="inline-flex items-center gap-1.5 rounded-lg bg-pitch-800 px-2.5 py-1 text-xs">
+                <span className="label-caps">Ø Tore</span>
+                <span className="font-mono font-semibold text-zinc-100">
+                  {prediction.overUnder.toLocaleString("de-DE")}
+                </span>
+              </span>
+            )}
+            {prediction.spread && (
+              <span className="inline-flex items-center gap-1.5 rounded-lg bg-pitch-800 px-2.5 py-1 text-xs">
+                <span className="label-caps">Handicap</span>
+                <span className="font-mono font-semibold text-zinc-100">
+                  {prediction.spread.teamName} {prediction.spread.line.replace(".", ",")}
+                </span>
+              </span>
+            )}
+          </div>
+        )}
 
         {/* Schlüsselfaktoren */}
         <ul className="mt-5 space-y-2.5 border-t border-line pt-4">

@@ -26,6 +26,7 @@ import {
   fetchNews,
   fetchStandings,
 } from "./api";
+import { tournamentDayKey } from "./utils";
 
 export type DataSource = "live" | "error";
 
@@ -36,6 +37,12 @@ export interface WmData {
   standings: Record<string, StandingRow[]>;
   /** Kompletter Turnier-Spielplan (lazy geladen, null = noch nicht da). */
   schedule: Match[] | null;
+  /**
+   * Fehler NUR beim (sekundären) Spielplan-Load. Bewusst getrennt von `source`,
+   * damit ein fehlgeschlagener Spielplan-Abruf nicht Dashboard/Tabellen/Live-
+   * Polling mit in den Fehlerzustand reißt (Kern-Daten bleiben nutzbar).
+   */
+  scheduleError: boolean;
   /** Echte WM-News von ESPN; leer, solange (oder falls) keine verfügbar sind. */
   news: NewsItem[];
 }
@@ -46,6 +53,7 @@ let store: WmData = {
   matches: [],
   standings: {},
   schedule: null,
+  scheduleError: false,
   news: [],
 };
 
@@ -66,18 +74,23 @@ const addDays = (d: Date, days: number) => {
 let groupOf: Record<string, string> = {};
 let scheduleRequested = false;
 
-// Letzter Gruppenspieltag der WM 2026 (27. Juni); danach beginnt die K.-o.-Runde.
-const GROUP_STAGE_END = new Date("2026-06-27T23:59:59Z");
+// Sicherheitsdatum: früher Morgen (UTC) NACH dem letzten Gruppentag. Großzügig
+// gewählt, damit Abendspiele des 27. Juni an der US-Westküste (= 28. Juni früh
+// UTC) nicht fälschlich als K.-o. gelten. Nur Heuristik für Spiele ohne round.
+const GROUP_STAGE_END = new Date("2026-06-28T12:00:00Z");
 
 /**
  * Gruppen-Fallback für Spiele ohne "Group X"-Note: nur setzen, wenn beide
- * Teams derselben Gruppe angehören und das Spiel in der Gruppenphase liegt.
- * Sonst würden K.-o.-Spiele fälschlich eine Gruppe erben.
+ * Teams derselben Gruppe angehören und das Spiel zur Gruppenphase gehört.
+ * Primär entscheidet die echte Turnierrunde (round); nur wenn die fehlt,
+ * greift das Datum als (zonen-tolerante) Heuristik. So erben K.-o.-Spiele
+ * keine Gruppe, und späte US-Gruppenspiele verlieren ihr Gruppenlabel nicht.
  */
 function applyGroupFallback(matches: Match[]): void {
   for (const m of matches) {
     if (m.group) continue;
-    if (new Date(m.kickoff) > GROUP_STAGE_END) continue;
+    if (m.round && m.round !== "group-stage") continue;
+    if (!m.round && new Date(m.kickoff) > GROUP_STAGE_END) continue;
     const g = groupOf[m.homeCode];
     if (g && groupOf[m.awayCode] === g) m.group = g;
   }
@@ -109,10 +122,24 @@ async function refreshScores(): Promise<void> {
     const prev = new Map(store.matches.map((m) => [m.id, m]));
     const merged = fresh.map((m) => {
       const old = prev.get(m.id);
+      // Alle nur per fetchMatchDetails angereicherten Felder bewahren – das
+      // Scoreboard (fetchMatches) liefert sie nicht, sonst gingen sie beim
+      // Poll verloren (Zuschauerzahl/Schiri würden flackern/verschwinden).
       return old
-        ? { ...m, stats: old.stats ?? m.stats, lineups: old.lineups ?? m.lineups, referee: old.referee ?? m.referee }
+        ? {
+            ...m,
+            stats: old.stats ?? m.stats,
+            lineups: old.lineups ?? m.lineups,
+            referee: old.referee ?? m.referee,
+            attendance: old.attendance ?? m.attendance,
+            officials: old.officials ?? m.officials,
+          }
         : m;
     });
+    // Laufende Spiele erneut zur Detail-Anreicherung freigeben: Ballbesitz,
+    // Schüsse und Aufstellung ändern sich live. Beendete/kommende bleiben
+    // dauerhaft im enriched-Cache (dort ändert sich nichts mehr).
+    for (const m of merged) if (m.status === "live") enriched.delete(m.id);
     setStore({ matches: merged });
   } catch {
     /* Polling-Fehler still ignorieren – letzter Stand bleibt sichtbar */
@@ -139,13 +166,24 @@ function start(): void {
   void loadAll();
   void loadNews();
   setInterval(() => {
+    // Selbstheilung: Nach einem transienten Fehler (z. B. kurzer Netzausfall
+    // beim Erst-Load) periodisch erneut versuchen, statt bis zum manuellen
+    // Reload/Retry im Fehlerzustand zu verharren.
+    if (store.source === "error") {
+      void loadAll();
+      if (store.news.length === 0) void loadNews();
+      return;
+    }
+    // Reiner Spielplan-Fehler (Kern ok): eigenständig erneut versuchen, sonst
+    // bliebe Spielplan/K.-o.-Baum bis zum manuellen Retry im Fehlerzustand.
+    if (store.scheduleError) void loadSchedule();
     if (store.matches.some((m) => m.status === "live")) void refreshScores();
   }, 60_000);
 }
 
-/** Erneuter Ladeversuch nach einem API-Fehler. */
+/** Erneuter Ladeversuch nach einem API-Fehler (Kern + Spielplan + News). */
 export function retry(): void {
-  setStore({ loading: true, source: "live", schedule: null });
+  setStore({ loading: true, source: "live", schedule: null, scheduleError: false });
   scheduleRequested = false;
   void loadAll();
   void loadNews();
@@ -172,14 +210,18 @@ const TOURNAMENT_END = new Date(2026, 6, 19);
 async function loadSchedule(): Promise<void> {
   if (scheduleRequested) return;
   scheduleRequested = true;
+  setStore({ scheduleError: false });
   try {
     const matches = await fetchMatches(TOURNAMENT_START, TOURNAMENT_END);
     applyGroupFallback(matches);
-    setStore({ schedule: matches });
+    setStore({ schedule: matches, scheduleError: false });
   } catch (err) {
     console.warn("[WM26] Spielplan konnte nicht geladen werden.", err);
+    // Nur der Spielplan-Load ist gescheitert – NICHT den globalen source auf
+    // "error" setzen, sonst kippen Dashboard, Tabellen und Live-Polling mit.
+    // Erneuter Versuch bleibt möglich (scheduleRequested zurücksetzen).
     scheduleRequested = false;
-    setStore({ schedule: [], source: "error" });
+    setStore({ scheduleError: true });
   }
 }
 
@@ -188,19 +230,26 @@ export function useSchedule(): { schedule: Match[]; loading: boolean; source: Da
   const data = useWmData();
 
   useEffect(() => {
-    if (!data.loading && data.source === "live" && data.schedule === null) {
+    if (!data.loading && data.source === "live" && data.schedule === null && !data.scheduleError) {
       void loadSchedule();
     }
-  }, [data.loading, data.source, data.schedule]);
+  }, [data.loading, data.source, data.schedule, data.scheduleError]);
 
+  // Für die Spielplan-/Bracket-Seite ist sowohl ein Kern- als auch ein reiner
+  // Spielplan-Fehler ein Fehlerzustand (ohne Spielplan gibt es nichts zu zeigen).
+  const source: DataSource = data.source === "error" || data.scheduleError ? "error" : "live";
+
+  if (data.scheduleError) {
+    return { schedule: [], loading: false, source: "error" };
+  }
   if (data.schedule === null) {
-    // Noch am Laden (live) bzw. Fehlerfall (error -> leer, kein weiteres Laden)
-    return { schedule: [], loading: data.source === "live", source: data.source };
+    // Noch am Laden (live) bzw. Kern-Fehlerfall
+    return { schedule: [], loading: data.source === "live", source };
   }
   // Kern-Store gewinnt: Polling hält dort Live-Scores aktuell
   const fresh = new Map(data.matches.map((m) => [m.id, m]));
   const schedule = data.schedule.map((m) => fresh.get(m.id) ?? m);
-  return { schedule, loading: false, source: data.source };
+  return { schedule, loading: false, source };
 }
 
 /* --------------------- Einzelspiel + Details ----------------------- */
@@ -230,18 +279,23 @@ export function useMatch(id: string | undefined): { match: Match | undefined; lo
     match.status !== "upcoming" &&
     !enriched.has(match.id);
 
+  // Nur an stabile Primitive binden: sonst feuert der Effekt bei jeder neuen
+  // match-Objektreferenz aus dem 60-s-Polling erneut (unnötige Auswertungen).
+  const matchId = match?.id;
   useEffect(() => {
-    if (!wantDetails || !match) return;
-    enriched.add(match.id);
-    fetchMatchDetails(match.id)
+    if (!wantDetails || !matchId) return;
+    enriched.add(matchId);
+    fetchMatchDetails(matchId)
       .then((details) => {
         const apply = (m: Match): Match =>
-          m.id === match.id
+          m.id === matchId
             ? {
                 ...m,
                 stats: details.stats ?? m.stats,
                 lineups: details.lineups ?? m.lineups,
                 referee: details.referee ?? m.referee,
+                attendance: details.attendance ?? m.attendance,
+                officials: details.officials ?? m.officials,
               }
             : m;
         setStore({
@@ -249,16 +303,18 @@ export function useMatch(id: string | undefined): { match: Match | undefined; lo
           schedule: store.schedule ? store.schedule.map(apply) : store.schedule,
         });
       })
-      .catch(() => enriched.delete(match.id));
-  }, [wantDetails, match]);
+      .catch(() => enriched.delete(matchId));
+  }, [wantDetails, matchId]);
 
   return { match, loading: data.loading || needSchedule };
 }
 
 /* ------------------------- Selektoren ------------------------------ */
 
-const sameLocalDay = (iso: string, ref: Date) =>
-  new Date(iso).toDateString() === ref.toDateString();
+// Tagesvergleich in der Turnier-Referenzzone (konsistent mit dem Spielplan),
+// damit Dashboard und Spielplan denselben „Heute"/„Gestern"-Begriff teilen.
+const sameTournamentDay = (iso: string, ref: Date) =>
+  tournamentDayKey(new Date(iso)) === tournamentDayKey(ref);
 
 /** Bezugszeitpunkt: das echte Jetzt. */
 export function effectiveNow(): Date {
@@ -268,7 +324,7 @@ export function effectiveNow(): Date {
 /** Spiele eines Tages relativ zu „jetzt" (0 = heute, -1 = gestern). */
 export function matchesOn(matches: Match[], dayOffset: number): Match[] {
   const ref = addDays(effectiveNow(), dayOffset);
-  return matches.filter((m) => sameLocalDay(m.kickoff, ref));
+  return matches.filter((m) => sameTournamentDay(m.kickoff, ref));
 }
 
 export const liveOf = (matches: Match[]): Match[] =>

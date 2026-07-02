@@ -35,7 +35,11 @@ export function deriveMomentum(match: Match, plays?: PlayAction[]): MomentumPoin
   const goals = match.goals ?? [];
   const lastGoal = goals.reduce((mx, g) => Math.max(mx, g.minute), 0);
   const lastPlay = (plays ?? []).reduce((mx, p) => Math.max(mx, p.minute), 0);
-  const baseMinute = match.status === "live" && match.minute ? match.minute : 90;
+  // Live ohne bekannte Minute (z. B. displayClock "HT"): Obergrenze aus den
+  // letzten realen Aktionen ableiten, statt fix 90' zu zeichnen (sonst ~45'
+  // leere Balken zur Halbzeit). match.minute === 0 bleibt gültig (?? statt ||).
+  const baseMinute =
+    match.status === "live" ? (match.minute ?? Math.max(lastPlay, lastGoal, 1)) : 90;
   const upTo = Math.min(120, Math.max(baseMinute, lastGoal, lastPlay, 1));
 
   if (plays && plays.length > 0) return momentumFromPlays(plays, upTo);
@@ -118,4 +122,22 @@ export function timeAgo(iso: string, now = new Date()): string {
 /** Nutzer-Zeitzone (Anzeige). */
 export function userTimeZone(): string {
   return Intl.DateTimeFormat().resolvedOptions().timeZone.replace(/_/g, " ");
+}
+
+/**
+ * Feste Turnier-Referenzzone (US-Ostküste). Spieltage („Heute", Tages-
+ * gruppierung) werden hieran ausgerichtet, damit ein zusammenhängender
+ * US-Spieltag – unabhängig von der Zeitzone des Nutzers – als EIN Tag zählt.
+ * Anstoßzeiten selbst zeigen wir weiterhin in der Zeitzone des Nutzers.
+ */
+export const TOURNAMENT_TZ = "America/New_York";
+
+/** Sortierbarer Tages-Schlüssel (YYYY-MM-DD) in der Turnier-Referenzzone. */
+export function tournamentDayKey(d: Date): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: TOURNAMENT_TZ,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(d);
 }

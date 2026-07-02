@@ -33,8 +33,13 @@ function sortRows(rows: StandingRow[]): StandingRow[] {
   );
 }
 
+/** Tordifferenz: bevorzugt den offiziellen ESPN-Wert, sonst selbst berechnet. */
+function goalDiffOf(row: StandingRow): number {
+  return row.goalDiff ?? row.goalsFor - row.goalsAgainst;
+}
+
 function diffLabel(row: StandingRow): string {
-  const d = row.goalsFor - row.goalsAgainst;
+  const d = goalDiffOf(row);
   return d > 0 ? `+${d}` : String(d);
 }
 
@@ -102,8 +107,15 @@ function GroupTable({ group, allRows }: { group: string; allRows: StandingRow[] 
                 >
                   <td className="py-2.5 pl-4 pr-1">
                     <span className="flex items-center gap-2">
+                      {/* Positionsbalken: offizielle ESPN-Quali-Farbe, sonst
+                          positionsbasierter Fallback (nie undefined). */}
                       <span
-                        className={cn("h-5 w-1 shrink-0 rounded-full", POS_MARKER[i])}
+                        className={cn(
+                          "h-5 w-1 shrink-0 rounded-full",
+                          !row.qualColor && (POS_MARKER[i] ?? "bg-pitch-700")
+                        )}
+                        style={row.qualColor ? { backgroundColor: row.qualColor } : undefined}
+                        title={row.qualLabel}
                         aria-hidden="true"
                       />
                       <span className="font-mono text-xs tabular-nums text-zinc-500">
@@ -142,9 +154,9 @@ function GroupTable({ group, allRows }: { group: string; allRows: StandingRow[] 
                   <td
                     className={cn(
                       "px-2 py-2.5 text-right font-mono text-xs tabular-nums",
-                      row.goalsFor - row.goalsAgainst > 0
+                      goalDiffOf(row) > 0
                         ? "text-volt-400"
-                        : row.goalsFor - row.goalsAgainst < 0
+                        : goalDiffOf(row) < 0
                           ? "text-signal-400"
                           : "text-zinc-400"
                     )}

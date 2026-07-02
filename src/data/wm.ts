@@ -13,6 +13,8 @@ export interface Team {
   group: string; // "A" … "L"; leer = nicht qualifiziert/Platzhalter
   form: ("S" | "U" | "N")[]; // Sieg/Unentschieden/Niederlage, letzte 5
   short?: string; // Kurzlabel fürs Crest, falls code zu lang (z. B. "3RD")
+  /** Echtes Länder-Wappen (ESPN-Logo-URL); fehlt → Farb-Roundel als Fallback. */
+  logo?: string;
   /** true = K.-o.-Platzhalter („Sieger Gruppe A", „Sieger Spiel 5"), kein echtes Team. */
   placeholder?: boolean;
 }
@@ -43,11 +45,19 @@ export interface MatchStats {
   possession?: [number, number];
   shots?: [number, number];
   shotsOnTarget?: [number, number];
+  blockedShots?: [number, number];
   passes?: [number, number];
   passAccuracy?: [number, number];
+  crosses?: [number, number];
   corners?: [number, number];
+  offsides?: [number, number];
+  tackles?: [number, number];
+  interceptions?: [number, number];
+  clearances?: [number, number];
+  saves?: [number, number];
   fouls?: [number, number];
   yellowCards?: [number, number];
+  redCards?: [number, number];
 }
 
 export interface MomentumPoint {
@@ -106,6 +116,10 @@ export interface Prediction {
   confidence: "hoch" | "mittel" | "niedrig";
   keyFactors: string[];
   tacticalSummary: string;
+  /** Buchmacher-Markt: erwartete Gesamttore (Over/Under-Linie), z. B. 2.5. */
+  overUnder?: number;
+  /** Buchmacher-Handicap: bevorzugtes Team + Linie, z. B. "ESP -1.5". */
+  spread?: { teamName: string; line: string };
 }
 
 export type MatchStatus = "live" | "upcoming" | "finished";
@@ -135,6 +149,10 @@ export interface Match {
   awayScore?: number;
   venueId: string;
   referee?: string;
+  /** Zuschauerzahl (aus ESPN gameInfo.attendance); 0/undefined = unbekannt. */
+  attendance?: number;
+  /** Offizielle (Schiedsrichter-Team) aus ESPN gameInfo.officials. */
+  officials?: { name: string; role: string }[];
   stats?: MatchStats;
   goals?: GoalEvent[];
   lineups?: { home: Lineup; away: Lineup };
@@ -239,11 +257,14 @@ export const TEAMS: Team[] = [
  * erhalten ein neutrales Platzhalter-Team statt eines Fehlers.
  */
 export const teamByCode = (code: string): Team => {
-  const team = TEAMS.find((t) => t.code === code);
-  return team ?? registerTeam({ code });
+  return TEAMS.find((t) => t.code === code) ?? transientTeam(code);
 };
 
-/** Registriert ein Team aus der Live-API oder aktualisiert Gruppen/Namen. */
+function transientTeam(code: string): Team {
+  return { code, name: code, colors: ["#3f3f46", "#71717a"], rating: 71, group: "", form: [] };
+}
+
+/** Registriert ein Team aus der Live-API oder aktualisiert Gruppen/Namen/Wappen. */
 export function registerTeam(partial: {
   code: string;
   name?: string;
@@ -252,12 +273,14 @@ export function registerTeam(partial: {
   group?: string;
   form?: Team["form"];
   short?: string;
+  logo?: string;
   placeholder?: boolean;
 }): Team {
   const existing = TEAMS.find((t) => t.code === partial.code);
   if (existing) {
     if (partial.group !== undefined) existing.group = partial.group;
     if (partial.form !== undefined) existing.form = partial.form;
+    if (partial.logo !== undefined && !existing.logo) existing.logo = partial.logo;
     return existing;
   }
   const team: Team = {
@@ -268,6 +291,7 @@ export function registerTeam(partial: {
     group: partial.group ?? "",
     form: partial.form ?? [],
     short: partial.short,
+    logo: partial.logo,
     placeholder: partial.placeholder,
   };
   TEAMS.push(team);
@@ -340,6 +364,14 @@ export interface StandingRow {
   goalsAgainst: number;
   points: number;
   rank?: number; // offizieller Rang aus der Live-API
+  /** Tordifferenz direkt aus ESPN (pointDifferential); sonst selbst berechnet. */
+  goalDiff?: number;
+  /** Rangänderung ggü. vorherigem Spieltag (>0 = gestiegen, <0 = gefallen). */
+  rankChange?: number;
+  /** Quali-Farbe aus ESPN note.color (z. B. "#81D6AC" = weiter). */
+  qualColor?: string;
+  /** Eingedeutschtes Quali-Label aus ESPN note.description. */
+  qualLabel?: string;
 }
 
 /* --------------------------- Favoriten (Mock) ----------------------- */

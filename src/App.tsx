@@ -1,7 +1,7 @@
-import { Suspense, lazy, useEffect } from "react";
-import { NavLink, Route, Routes, useLocation } from "react-router-dom";
+import { Suspense, lazy, useEffect, useLayoutEffect } from "react";
+import { Link, NavLink, Route, Routes, useLocation } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
-import { CalendarDays, LayoutGrid, ListOrdered, Trophy, Radio } from "lucide-react";
+import { CalendarDays, Compass, LayoutGrid, ListOrdered, Trophy, Radio } from "lucide-react";
 import { liveOf, useWmData } from "./lib/useWmData";
 import { Skeleton } from "./components/ui";
 import ThemeSwitcher from "./components/ThemeSwitcher";
@@ -80,6 +80,40 @@ function Navbar() {
   );
 }
 
+/**
+ * Setzt den Scroll bei jedem Routenwechsel nach oben. Ohne dies öffnete eine
+ * Detailseite mitten im Dokument (Scroll der Vorseite blieb erhalten), was sich
+ * wie eine „hängende" Navigation anfühlte. Läuft vor dem Paint (kein Springen).
+ * Der Spielplan überschreibt das danach bewusst mit seinem „Heute"-Sprung.
+ */
+function ScrollToTop() {
+  const { pathname } = useLocation();
+  useLayoutEffect(() => {
+    window.scrollTo(0, 0);
+  }, [pathname]);
+  return null;
+}
+
+/** Auffangroute für unbekannte URLs (statt leerem Bildschirm). */
+function NotFound() {
+  return (
+    <div className="card mx-auto mt-8 max-w-md p-6 text-center sm:p-8">
+      <Compass className="mx-auto h-10 w-10 text-zinc-600" aria-hidden="true" />
+      <h1 className="mt-4 font-display text-xl font-extrabold text-zinc-50">Seite nicht gefunden</h1>
+      <p className="mt-2 text-sm text-zinc-500">
+        Diese Adresse gibt es nicht (mehr). Alle Bereiche erreichst du über die Navigation.
+      </p>
+      <Link
+        to="/"
+        className="mt-6 inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-xl bg-volt-400 px-5 text-sm font-bold text-pitch-950 transition-colors duration-200 hover:bg-volt-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-volt-400/60 focus-visible:ring-offset-2 focus-visible:ring-offset-pitch-950"
+      >
+        <LayoutGrid className="h-4 w-4" aria-hidden="true" />
+        Zum Dashboard
+      </Link>
+    </div>
+  );
+}
+
 function PageFallback() {
   return (
     <div className="space-y-3 sm:space-y-4" aria-busy="true" aria-label="Inhalt wird geladen">
@@ -107,6 +141,7 @@ export default function App() {
 
   return (
     <div className="min-h-dvh">
+      <ScrollToTop />
       <a
         href="#main-content"
         className="sr-only rounded-lg bg-volt-400 px-4 py-2 text-sm font-bold text-pitch-950 focus:not-sr-only focus:absolute focus:left-3 focus:top-3 focus:z-[100] focus:outline-none focus:ring-2 focus:ring-volt-400 focus:ring-offset-2 focus:ring-offset-pitch-950"
@@ -115,25 +150,29 @@ export default function App() {
       </a>
       <Navbar />
       <main id="main-content" className="mx-auto max-w-6xl px-3 pb-16 pt-24 sm:px-4 sm:pt-28">
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={location.pathname}
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -8 }}
-            transition={{ duration: 0.25, ease: "easeOut" }}
-          >
-            <Suspense fallback={<PageFallback />}>
+        {/* Suspense bewusst AUSSERHALB der gekeyten motion.div: so kann ein noch
+            nicht geladener Lazy-Chunk die Exit-Animation nicht blockieren
+            (verhindert das gelegentliche „Einfrieren" beim Zurück-Navigieren). */}
+        <Suspense fallback={<PageFallback />}>
+          <AnimatePresence mode="wait" initial={false}>
+            <motion.div
+              key={location.pathname}
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.25, ease: "easeOut" }}
+            >
               <Routes location={location}>
                 <Route path="/" element={<Dashboard />} />
                 <Route path="/spielplan" element={<Schedule />} />
                 <Route path="/match/:id" element={<MatchCenter />} />
                 <Route path="/tabellen" element={<Standings />} />
                 <Route path="/ko" element={<Bracket />} />
+                <Route path="*" element={<NotFound />} />
               </Routes>
-            </Suspense>
-          </motion.div>
-        </AnimatePresence>
+            </motion.div>
+          </AnimatePresence>
+        </Suspense>
       </main>
       <footer className="border-t border-line px-4 py-6 text-center text-xs text-zinc-600">
         WM 2026 · Alle Daten live via ESPN-API · Kein offizielles FIFA-Produkt

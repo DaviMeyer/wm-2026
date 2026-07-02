@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { motion, type Variants } from "framer-motion";
 import { CalendarDays, ChevronRight, ExternalLink, MapPin, Newspaper } from "lucide-react";
@@ -5,7 +6,10 @@ import { teamByCode, venueById, type Match, type NewsItem } from "../data/wm";
 import { ErrorState, LiveBadge, Pill, SectionHeader, Skeleton, TeamCrest } from "../components/ui";
 import { AIPredictionCard } from "../components/ai/AIPredictionCard";
 import { FavoritesBar } from "../components/dashboard/FavoritesBar";
+import { Confetti } from "../components/fx/Confetti";
+import { ScoreFlip } from "../components/match/ScoreFlip";
 import { effectiveNow, liveOf, matchesOn, retry, useWmData } from "../lib/useWmData";
+import { usePrevious } from "../lib/hooks";
 import { cn, kickoffUser, timeAgo } from "../lib/utils";
 
 /** "Fr., 12. Juni" relativ zum Bezugstag. */
@@ -54,21 +58,38 @@ function HeroLiveCard({ match }: { match: Match }) {
   const away = teamByCode(match.awayCode);
   const venue = venueById(match.venueId);
 
+  // Konfetti feuern, wenn im Live-Spiel ein Tor fällt (Gesamttore steigen) –
+  // bewusst nicht beim ersten Mount (prevTotal ist da noch undefined).
+  const total = (match.homeScore ?? 0) + (match.awayScore ?? 0);
+  const prevTotal = usePrevious(total);
+  const [burst, setBurst] = useState(0);
+  useEffect(() => {
+    if (match.status === "live" && prevTotal !== undefined && total > prevTotal) {
+      setBurst((b) => b + 1);
+    }
+  }, [total, prevTotal, match.status]);
+
   return (
     <Link
       to={`/match/${match.id}`}
       aria-label={`Zum Match-Center: ${home.name} gegen ${away.name}`}
       className="card group relative block cursor-pointer overflow-hidden p-4 shadow-[0_0_60px_-18px_rgb(205_245_66/0.25)] transition-colors duration-200 hover:border-volt-400/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-volt-400 sm:p-8"
     >
-      {/* dezenter Volt-Glow */}
+      {/* atmender Rasen-Glow (Volt + Azure) */}
       <div
-        className="pointer-events-none absolute inset-0 opacity-70"
+        className="pointer-events-none absolute inset-0 animate-pitch-breathe"
         style={{
           background:
             "radial-gradient(560px 220px at 18% 0%, rgb(205 245 66 / 0.08), transparent 65%), radial-gradient(560px 220px at 82% 100%, rgb(56 189 248 / 0.07), transparent 65%)",
         }}
         aria-hidden="true"
       />
+      {burst > 0 && (
+        <Confetti
+          burstKey={burst}
+          colors={[home.colors[0], away.colors[0], home.colors[1], away.colors[1]]}
+        />
+      )}
 
       <div className="relative">
         <div className="flex items-center justify-between gap-3">
@@ -101,13 +122,15 @@ function HeroLiveCard({ match }: { match: Match }) {
             <span className="display-num text-4xl text-zinc-600 sm:text-7xl">–</span>
           ) : (
             <div className="flex items-center gap-1.5 sm:gap-4">
-              <span className="display-num text-4xl text-volt-400 sm:text-7xl">
-                {match.homeScore}
-              </span>
+              <ScoreFlip
+                value={match.homeScore ?? 0}
+                className="display-num text-4xl text-volt-400 sm:text-7xl"
+              />
               <span className="display-num text-2xl text-zinc-600 sm:text-5xl">:</span>
-              <span className="display-num text-4xl text-azure-400 sm:text-7xl">
-                {match.awayScore}
-              </span>
+              <ScoreFlip
+                value={match.awayScore ?? 0}
+                className="display-num text-4xl text-azure-400 sm:text-7xl"
+              />
             </div>
           )}
 
@@ -158,6 +181,8 @@ function TodayMatchCard({ match }: { match: Match }) {
   const away = teamByCode(match.awayCode);
   const venue = venueById(match.venueId);
   const isLive = match.status === "live";
+  // Ergebnis auch bei beendeten Spielen zeigen (nicht nur live).
+  const showScore = match.status !== "upcoming";
 
   return (
     <Link
@@ -171,6 +196,8 @@ function TodayMatchCard({ match }: { match: Match }) {
       <div className="flex items-center justify-between gap-2">
         {isLive ? (
           <LiveBadge minute={match.minute} />
+        ) : match.status === "finished" ? (
+          <span className="font-mono text-[11px] uppercase tracking-wider text-zinc-500">Endstand</span>
         ) : (
           <span className="font-mono text-sm tabular-nums text-zinc-300">
             {kickoffUser(match)} Uhr
@@ -191,7 +218,7 @@ function TodayMatchCard({ match }: { match: Match }) {
               <TeamCrest code={team.code} size="md" />
               <span className="truncate text-sm font-semibold text-zinc-100">{team.name}</span>
             </span>
-            {isLive && (
+            {showScore && (
               <span
                 className={cn(
                   "display-num shrink-0 text-xl",
@@ -367,13 +394,19 @@ export default function Dashboard() {
         />
       </motion.section>
 
-      {/* Hero: Live-Match + KI-Prognose */}
+      {/* Hero: Fokus-Spiel + (falls vorhanden) Markt-Prognose. Ohne Prognose
+          (z. B. Live-/beendetes Spiel) füllt die Hero-Karte die ganze Breite,
+          statt eine leere zweite Spalte zu hinterlassen. */}
       {featured && (
-        <motion.section variants={rise} aria-label="Live-Match im Fokus">
-          <div className="grid gap-4 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
-            <HeroLiveCard match={featured} />
-            <AIPredictionCard match={featured} />
-          </div>
+        <motion.section variants={rise} aria-label="Spiel im Fokus">
+          {featured.prediction ? (
+            <div className="grid gap-4 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
+              <HeroLiveCard key={featured.id} match={featured} />
+              <AIPredictionCard match={featured} />
+            </div>
+          ) : (
+            <HeroLiveCard key={featured.id} match={featured} />
+          )}
         </motion.section>
       )}
 

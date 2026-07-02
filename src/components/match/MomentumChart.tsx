@@ -9,7 +9,7 @@ import {
   YAxis,
 } from "recharts";
 import type { MomentumPoint } from "../../data/wm";
-import { useTheme } from "../../lib/theme";
+import { ACCENTS, useTheme } from "../../lib/theme";
 import { cn } from "../../lib/utils";
 
 /* ---------------------------------------------------------------- */
@@ -61,14 +61,15 @@ export function MomentumChart({
   /** true = Toren-/Ballbesitz-Fallback (Play-by-Play noch nicht geladen). */
   estimated?: boolean;
 }) {
-  // Recharts braucht feste Farb-Props. useTheme triggert ein Re-Render bei
-  // Modus-/Akzentwechsel; die Balkenfarben holen wir aus den CSS-Variablen
-  // (folgen damit dem Akzent), Achsen/Text aus dem aufgelösten Modus.
-  const { resolvedMode } = useTheme();
-  const css = getComputedStyle(document.documentElement);
-  const volt = css.getPropertyValue("--color-volt-400").trim() || "#cdf542";
-  const azure = css.getPropertyValue("--color-azure-400").trim() || "#38bdf8";
-  const axisColor = css.getPropertyValue("--color-pitch-700").trim() || "#27272e";
+  // Recharts braucht feste Farb-Props. Die Akzentfarbe (volt) direkt aus dem
+  // Theme-Context ableiten – nicht per getComputedStyle aus dem DOM lesen, sonst
+  // läse man beim Akzentwechsel für einen Frame noch die alte Farbe (Kind-Effekt
+  // liefe vor dem data-accent-Effekt des ThemeProviders). Azure ist nicht
+  // akzentabhängig, pitch-700 nur modusabhängig.
+  const { resolvedMode, accent } = useTheme();
+  const volt = ACCENTS.find((a) => a.id === accent)?.[resolvedMode] ?? "#cdf542";
+  const azure = "#38bdf8";
+  const axisColor = resolvedMode === "dark" ? "#27272e" : "#d7dae1";
   const tickColor = resolvedMode === "dark" ? "#71717a" : "#52525b";
   const zeroColor = resolvedMode === "dark" ? "#52525b" : "#b4b8c0";
   const cursorFill = resolvedMode === "dark" ? "rgb(255 255 255 / 0.06)" : "rgb(9 9 11 / 0.05)";

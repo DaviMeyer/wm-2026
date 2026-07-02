@@ -6,7 +6,7 @@ import { ChevronRight, Star } from "lucide-react";
 import { teamByCode, venueById, DEFAULT_FAVORITES, type Match } from "../data/wm";
 import { ErrorState, Pill, Skeleton, TeamCrest } from "../components/ui";
 import { effectiveNow, retry, useSchedule } from "../lib/useWmData";
-import { cn, kickoffUser } from "../lib/utils";
+import { cn, kickoffUser, TOURNAMENT_TZ, tournamentDayKey } from "../lib/utils";
 
 /* ------------------------------------------------------------------ */
 /*  Spielplan – alle Partien des Turniers, nach Tagen gruppiert        */
@@ -48,15 +48,20 @@ function loadFavorites(): string[] {
   return DEFAULT_FAVORITES;
 }
 
+// Spieltage werden an der Turnier-Referenzzone (US-Ostküste) ausgerichtet –
+// siehe TOURNAMENT_TZ/tournamentDayKey in lib/utils (geteilt mit dem Dashboard),
+// damit ein zusammenhängender US-Spieltag genau EINEN Tagesblock bildet.
 function dayLabel(iso: string): string {
   return new Intl.DateTimeFormat("de-DE", {
     weekday: "long",
     day: "numeric",
     month: "long",
+    timeZone: TOURNAMENT_TZ,
   }).format(new Date(iso));
 }
 
-const isToday = (iso: string) => new Date(iso).toDateString() === effectiveNow().toDateString();
+const isToday = (iso: string) =>
+  tournamentDayKey(new Date(iso)) === tournamentDayKey(effectiveNow());
 
 function ScheduleRow({ match }: { match: Match }) {
   const home = teamByCode(match.homeCode);
@@ -126,7 +131,20 @@ export default function Schedule() {
   const { schedule, loading, source } = useSchedule();
   const [phase, setPhase] = useState<Phase>("alle");
   const [onlyFavorites, setOnlyFavorites] = useState(false);
-  const [favorites] = useState<string[]>(loadFavorites);
+  const [favorites, setFavorites] = useState<string[]>(loadFavorites);
+
+  // Favoriten aktuell halten: Änderungen aus anderen Tabs (storage-Event) und
+  // beim Zurückkehren zur Seite (focus) neu einlesen – statt eines einmaligen
+  // Snapshots, der die Auswahl der FavoritesBar verpasst.
+  useEffect(() => {
+    const sync = () => setFavorites(loadFavorites());
+    window.addEventListener("storage", sync);
+    window.addEventListener("focus", sync);
+    return () => {
+      window.removeEventListener("storage", sync);
+      window.removeEventListener("focus", sync);
+    };
+  }, []);
 
   const days = useMemo(() => {
     const filtered = schedule
@@ -142,7 +160,7 @@ export default function Schedule() {
       .sort((a, b) => new Date(a.kickoff).getTime() - new Date(b.kickoff).getTime());
     const grouped: { key: string; label: string; today: boolean; matches: Match[] }[] = [];
     for (const m of filtered) {
-      const key = new Date(m.kickoff).toDateString();
+      const key = tournamentDayKey(new Date(m.kickoff));
       const last = grouped[grouped.length - 1];
       if (last && last.key === key) last.matches.push(m);
       else grouped.push({ key, label: dayLabel(m.kickoff), today: isToday(m.kickoff), matches: [m] });

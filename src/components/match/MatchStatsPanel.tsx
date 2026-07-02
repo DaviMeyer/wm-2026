@@ -32,11 +32,19 @@ export function MatchStatsPanel({ match, className }: { match: Match; className?
       { label: "Ballbesitz", values: stats.possession, format: fmtPct },
       { label: "Schüsse", values: stats.shots },
       { label: "Schüsse aufs Tor", values: stats.shotsOnTarget },
+      { label: "Geblockte Schüsse", values: stats.blockedShots },
+      { label: "Ecken", values: stats.corners },
+      { label: "Flanken", values: stats.crosses },
+      { label: "Abseits", values: stats.offsides },
       { label: "Pässe", values: stats.passes },
       { label: "Passquote", values: stats.passAccuracy, format: fmtPct },
-      { label: "Ecken", values: stats.corners },
+      { label: "Zweikämpfe", values: stats.tackles },
+      { label: "Abgefangene Bälle", values: stats.interceptions },
+      { label: "Klärungen", values: stats.clearances },
+      { label: "Paraden", values: stats.saves },
       { label: "Fouls", values: stats.fouls },
       { label: "Gelbe Karten", values: stats.yellowCards },
+      { label: "Rote Karten", values: stats.redCards },
     ] as { label: string; values?: [number, number]; format?: (v: number) => string }[]
   ).filter((r): r is { label: string; values: [number, number]; format?: (v: number) => string } =>
     r.values !== undefined

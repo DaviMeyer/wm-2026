@@ -1,4 +1,5 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
+import { motion, useReducedMotion } from "framer-motion";
 import { RefreshCw, WifiOff } from "lucide-react";
 import { teamByCode } from "../data/wm";
 import { cn } from "../lib/utils";
@@ -43,7 +44,10 @@ export function SectionHeader({
 export function LiveBadge({ minute }: { minute?: number }) {
   return (
     <span className="inline-flex items-center gap-1.5 rounded-full bg-volt-400/10 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider text-volt-400">
-      <span className="h-1.5 w-1.5 animate-pulse-live rounded-full bg-volt-400" />
+      <span className="relative flex h-1.5 w-1.5 items-center justify-center">
+        <span className="absolute inline-flex h-full w-full animate-radar-ping rounded-full bg-volt-400" />
+        <span className="relative h-1.5 w-1.5 rounded-full bg-volt-400" />
+      </span>
       Live{typeof minute === "number" && ` · ${minute}′`}
     </span>
   );
@@ -71,6 +75,7 @@ export function TeamCrest({
   decorative?: boolean;
 }) {
   const team = teamByCode(code);
+  const [failed, setFailed] = useState(false);
   const dims = {
     sm: "h-6 w-6 text-[8px]",
     md: "h-8 w-8 text-[9px]",
@@ -78,11 +83,38 @@ export function TeamCrest({
     xl: "h-14 w-14 text-[13px] sm:h-16 sm:w-16 sm:text-sm",
   }[size];
   const [c1, c2] = team.colors;
+  const a11y = {
+    role: decorative ? undefined : "img",
+    "aria-hidden": decorative || undefined,
+    "aria-label": decorative ? undefined : `Wappen ${team.name}`,
+  } as const;
+
+  // Echtes Länder-Wappen (ESPN-Logo), falls vorhanden und ladbar – sonst
+  // fällt es auf das gemalte Farb-Roundel zurück (offline-tauglich, konsistent).
+  if (team.logo && !failed && !team.placeholder) {
+    return (
+      <span
+        {...a11y}
+        className={cn(
+          "inline-flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-pitch-800 ring-1 ring-white/15",
+          dims,
+          className
+        )}
+      >
+        <img
+          src={team.logo}
+          alt=""
+          loading="lazy"
+          onError={() => setFailed(true)}
+          className="h-full w-full object-cover"
+        />
+      </span>
+    );
+  }
+
   return (
     <span
-      role={decorative ? undefined : "img"}
-      aria-hidden={decorative || undefined}
-      aria-label={decorative ? undefined : `Wappen ${team.name}`}
+      {...a11y}
       className={cn(
         "inline-flex shrink-0 items-center justify-center rounded-full font-display font-extrabold tracking-wider ring-1 ring-white/15",
         dims,
@@ -152,6 +184,7 @@ export function StatBar({
   const total = actualTotal || 1;
   const homeWins = highlightWinner && home > away;
   const awayWins = highlightWinner && away > home;
+  const reduce = useReducedMotion();
   return (
     <div>
       <div className="mb-1.5 flex items-baseline justify-between gap-2 font-mono text-sm">
@@ -169,13 +202,17 @@ export function StatBar({
           <div className="w-full rounded-full bg-pitch-700" />
         ) : (
           <>
-            <div
-              className="rounded-full bg-volt-400/80 transition-all duration-500"
-              style={{ width: `${(home / total) * 100}%` }}
+            <motion.div
+              className="rounded-full bg-volt-400/80"
+              initial={{ width: 0 }}
+              animate={{ width: `${(home / total) * 100}%` }}
+              transition={{ duration: reduce ? 0 : 0.6, ease: "easeOut" }}
             />
-            <div
-              className="rounded-full bg-azure-400/80 transition-all duration-500"
-              style={{ width: `${(away / total) * 100}%` }}
+            <motion.div
+              className="rounded-full bg-azure-400/80"
+              initial={{ width: 0 }}
+              animate={{ width: `${(away / total) * 100}%` }}
+              transition={{ duration: reduce ? 0 : 0.6, ease: "easeOut" }}
             />
           </>
         )}
