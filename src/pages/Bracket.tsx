@@ -1,8 +1,8 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { motion } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import type { Variants } from "framer-motion";
-import { ChevronsLeftRight, Trophy } from "lucide-react";
+import { Trophy } from "lucide-react";
 import { teamByCode } from "../data/wm";
 import type { Match, MatchRound, MatchStatus, StandingRow } from "../data/wm";
 import { ErrorState, Pill, Skeleton, TeamCrest } from "../components/ui";
@@ -190,9 +190,14 @@ function buildProjectedRounds(standings: Record<string, StandingRow[]>): Round[]
 
 /* ----------------------------- Render ------------------------------ */
 
-const columnVariants: Variants = {
-  hidden: { opacity: 0, x: 18 },
-  show: { opacity: 1, x: 0, transition: { duration: 0.35, ease: "easeOut" } },
+const gridVariants: Variants = {
+  hidden: {},
+  show: { transition: { staggerChildren: 0.035 } },
+};
+
+const cardVariants: Variants = {
+  hidden: { opacity: 0, y: 12 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.28, ease: "easeOut" } },
 };
 
 const shortDate = (iso: string) =>
@@ -319,7 +324,7 @@ function MatchCard({ match, isFinal = false }: { match: BracketMatch; isFinal?: 
   );
 
   const className = cn(
-    "card relative block overflow-hidden p-3 transition-colors duration-200",
+    "card relative flex h-full flex-col overflow-hidden p-3 transition-colors duration-200",
     isFinal
       ? "border-gold-400/40 bg-gradient-to-b from-gold-400/10 to-transparent hover:border-gold-400/70"
       : "hover:border-pitch-700",
@@ -347,12 +352,33 @@ export default function Bracket() {
       : { rounds: buildProjectedRounds(standings), projected: true };
   }, [schedule, standings]);
 
+  // Aktiv gewählte Runde. Standard: die früheste Runde, in der noch/gerade
+  // gespielt wird (live oder anstehend) – sonst die erste Runde.
+  const defaultRound = useMemo(() => {
+    const idx = rounds.findIndex((r) =>
+      r.matches.some((mm) => mm.status === "live" || mm.status === "upcoming")
+    );
+    return idx >= 0 ? idx : 0;
+  }, [rounds]);
+
+  const [active, setActive] = useState(defaultRound);
+  // Sinnvolle Vorauswahl übernehmen, sobald die Daten (Runden) geladen sind.
+  useEffect(() => setActive(defaultRound), [defaultRound]);
+
   if (loading) {
     return (
-      <div className="flex gap-5 overflow-hidden" aria-busy="true" aria-label="Turnierbaum wird geladen">
-        {Array.from({ length: 4 }, (_, i) => (
-          <Skeleton key={i} className="h-[60vh] w-56 shrink-0 sm:w-60" />
-        ))}
+      <div aria-busy="true" aria-label="Turnierbaum wird geladen">
+        <Skeleton className="mb-6 h-9 w-56" />
+        <div className="mb-6 flex gap-2 overflow-hidden">
+          {Array.from({ length: 6 }, (_, i) => (
+            <Skeleton key={i} className="h-9 w-28 shrink-0 rounded-full" />
+          ))}
+        </div>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {Array.from({ length: 8 }, (_, i) => (
+            <Skeleton key={i} className="h-28" />
+          ))}
+        </div>
       </div>
     );
   }
@@ -360,6 +386,9 @@ export default function Bracket() {
   if (source === "error") {
     return <ErrorState onRetry={retry} />;
   }
+
+  const activeRound = rounds[Math.min(active, rounds.length - 1)];
+  const isFinalRound = activeRound === rounds[rounds.length - 1];
 
   return (
     <div>
@@ -382,62 +411,85 @@ export default function Bracket() {
         </Pill>
       </motion.header>
 
-      <motion.p
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ duration: 0.3, delay: 0.15 }}
-        className="mb-4 flex items-center gap-1.5 text-xs text-zinc-600"
-      >
-        <ChevronsLeftRight className="h-3.5 w-3.5" aria-hidden="true" />
-        Horizontal scrollen oder mit den Pfeiltasten navigieren, um alle Runden zu sehen
-      </motion.p>
-
+      {/* Runden-Auswahl: nur die gewählte Runde wird gezeigt – kein Endlos-Scroll */}
       <div
-        className="overflow-x-auto overscroll-x-contain rounded-2xl pb-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-volt-400"
-        role="region"
-        aria-label="Turnierbaum, horizontal scrollbar"
-        tabIndex={0}
+        role="tablist"
+        aria-label="K.-o.-Runde wählen"
+        className="mb-5 -mx-4 flex gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:flex-wrap sm:px-0"
       >
-        <div className="flex min-w-max items-stretch">
-          {rounds.map((round, ri) => {
-            const isFinalRound = ri === rounds.length - 1;
-            return (
-              <motion.section
-                key={round.title}
-                variants={columnVariants}
-                initial="hidden"
-                animate="show"
-                transition={{ delay: ri * 0.09 }}
-                aria-label={round.title}
-                className={cn(
-                  "flex w-56 shrink-0 flex-col sm:w-60",
-                  ri > 0 && "ml-4 border-l border-line/70 pl-4 sm:ml-5 sm:pl-5"
-                )}
-              >
-                <header className="mb-4">
-                  <p className={cn("label-caps", isFinalRound && "text-gold-400")}>
-                    {round.title}
-                  </p>
-                  <p className="mt-0.5 font-mono text-[11px] text-zinc-600">
-                    {round.dates} 2026
-                  </p>
-                </header>
-                <div className="flex flex-1 flex-col justify-around gap-3">
-                  {round.matches.map((match) => (
-                    <MatchCard key={match.key} match={match} isFinal={isFinalRound} />
-                  ))}
-                </div>
-              </motion.section>
-            );
-          })}
-        </div>
+        {rounds.map((round, ri) => {
+          const selected = ri === Math.min(active, rounds.length - 1);
+          const finalTab = ri === rounds.length - 1;
+          const liveHere = round.matches.some((mm) => mm.status === "live");
+          return (
+            <button
+              key={round.title}
+              type="button"
+              role="tab"
+              aria-selected={selected}
+              onClick={() => setActive(ri)}
+              className={cn(
+                "relative inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-sm font-semibold transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-volt-400/60",
+                selected
+                  ? finalTab
+                    ? "border-gold-400/60 bg-gold-400/15 text-gold-400"
+                    : "border-volt-400/60 bg-volt-400/15 text-volt-400"
+                  : "border-line bg-pitch-900/60 text-zinc-400 hover:border-pitch-700 hover:text-zinc-200"
+              )}
+            >
+              {finalTab && <Trophy className="h-3.5 w-3.5" aria-hidden="true" />}
+              {round.title}
+              {liveHere && (
+                <span
+                  className="h-1.5 w-1.5 animate-pulse-live rounded-full bg-volt-400"
+                  aria-label="Läuft gerade"
+                />
+              )}
+            </button>
+          );
+        })}
       </div>
 
+      {/* Gewählte Runde als kompaktes, responsives Grid */}
+      <AnimatePresence mode="wait">
+        <motion.section
+          key={activeRound.title}
+          role="tabpanel"
+          aria-label={activeRound.title}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.2 }}
+        >
+          <p className="mb-4 font-mono text-[11px] text-zinc-600">
+            {activeRound.dates} 2026 · {activeRound.matches.length}{" "}
+            {activeRound.matches.length === 1 ? "Spiel" : "Spiele"}
+          </p>
+          <motion.div
+            variants={gridVariants}
+            initial="hidden"
+            animate="show"
+            className={cn(
+              "grid gap-3",
+              isFinalRound
+                ? "mx-auto max-w-md grid-cols-1"
+                : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
+            )}
+          >
+            {activeRound.matches.map((match) => (
+              <motion.div key={match.key} variants={cardVariants}>
+                <MatchCard match={match} isFinal={isFinalRound} />
+              </motion.div>
+            ))}
+          </motion.div>
+        </motion.section>
+      </AnimatePresence>
+
       <motion.p
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        transition={{ duration: 0.3, delay: 0.4 }}
-        className="mt-2 text-xs text-zinc-600"
+        transition={{ duration: 0.3, delay: 0.2 }}
+        className="mt-6 text-xs text-zinc-600"
       >
         {projected
           ? "Projizierte Paarungen auf Basis der aktuellen Gruppentabellen. Die acht besten Gruppendritten werden nach dem 3. Spieltag zugelost."
